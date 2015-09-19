@@ -18,10 +18,10 @@ trait Methods extends SprayJsonSupport with DefaultJsonProtocol {
 
   def botToken: String
 
-  val getMe = new Method0[User]("getMe", botToken)
-  val getUpdates = new Method1[GetUpdatesReq, List[Update]]("getUpdates", botToken)
-  val setWebHook = new Method1[MultipartFormData, String]("setWebhook", botToken)
-  val unsetWebHook = new Method1[MultipartFormData, String]("setWebhook", botToken)
+  lazy val getMe = new Method0[User]("getMe", botToken)
+  lazy val getUpdates = new Method1[GetUpdatesReq, List[Update]]("getUpdates", botToken)
+  lazy val setWebHook = new Method1[MultipartFormData, String]("setWebhook", botToken)
+  lazy val unsetWebHook = new Method1[MultipartFormData, String]("setWebhook", botToken)
     .compose[Unit]((a:Unit) => SetWebHookReq("").toMultipartFormData)
 
 }
