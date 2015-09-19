@@ -17,7 +17,7 @@ case class SetWebHookReq(url: String, certificate: Option[File] = None) {
   def toFormData: FormData = FormData(Map("url" -> url))
 
   def toMultipartFormData = MultipartFormData(
-    Seq(BodyPart(HttpEntity.apply(url), "url"))
+    Seq(BodyPart(HttpEntity(url), "url"))
       ++ certificate.map(BodyPart(_, "certificate"))
   )
 }

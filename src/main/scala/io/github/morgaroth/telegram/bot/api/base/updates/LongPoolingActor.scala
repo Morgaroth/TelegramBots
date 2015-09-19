@@ -1,31 +1,13 @@
 package io.github.morgaroth.telegram.bot.api.base.updates
 
-import java.io.File
-
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
-import io.github.morgaroth.telegram.bot.api.base.methods.{GetUpdatesReq, Method0, Method1, SetWebHookReq}
-import io.github.morgaroth.telegram.bot.api.base.models.{Update, User}
-import spray.http.{FormData, StatusCodes, MultipartFormData}
-import spray.httpx.{UnsuccessfulResponseException, SprayJsonSupport}
-import spray.json.DefaultJsonProtocol
+import io.github.morgaroth.telegram.bot.api.base.methods._
+import spray.http.StatusCodes
+import spray.httpx.UnsuccessfulResponseException
 
 /**
  * Created by mateusz on 18.09.15.
  */
-
-trait Methods extends SprayJsonSupport with DefaultJsonProtocol {
-  implicit def actorSystem: ActorSystem
-
-  def botToken: String
-
-  lazy val getMe = new Method0[User]("getMe", botToken)
-  lazy val getUpdates = new Method1[GetUpdatesReq, List[Update]]("getUpdates", botToken)
-  lazy val setWebHook = new Method1[MultipartFormData, Boolean]("setWebhook", botToken)
-  lazy val unsetWebHook = new Method1[FormData, Boolean]("setWebhook", botToken)
-    .compose[Unit](x => SetWebHookReq.unset)
-
-}
-
 object LongPoolingActor {
   def props(botToken: String) = Props(classOf[LongPoolingActor], botToken)
 }
