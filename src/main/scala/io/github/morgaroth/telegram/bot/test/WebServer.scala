@@ -50,11 +50,6 @@ object WebServer extends App with Directives with Methods {
 
   val log = Logging(actorSystem, getClass)
 
-  sys.addShutdownHook {
-    unsetWebHook().onComplete(x => log.info(s"unset $x"))
-    actorSystem.shutdown()
-  }
-
   val callbacks = new WebHookService(actorSystem)
 
   val routes = {
@@ -73,7 +68,7 @@ object WebServer extends App with Directives with Methods {
   log.info(s"used certificate can read? ${certificateFile.canRead}.")
   val req = SetWebHookReq(s"https://$domain/bots/$botSecret/callbacks", certificateFile)
 
-  setWebHook(req.toMultipartFormData).onComplete(x => log.info(s"setting webhook $x"))
+  setWebHook(req).onComplete(x => log.info(s"setting webhook $x"))
 
   val rootService = actorSystem.actorOf(Props(new RoutedHttpService(routes)))
 

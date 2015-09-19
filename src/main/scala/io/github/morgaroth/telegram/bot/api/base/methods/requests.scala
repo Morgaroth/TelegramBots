@@ -3,7 +3,6 @@ package io.github.morgaroth.telegram.bot.api.base.methods
 import java.io.File
 
 import spray.http._
-import spray.httpx.marshalling.{MarshallingContext, Marshaller}
 import us.bleibinha.spray.json.macros.lazyy.json
 
 /**
@@ -15,14 +14,18 @@ import us.bleibinha.spray.json.macros.lazyy.json
                                 timeout: Option[Int] = None)
 
 case class SetWebHookReq(url: String, certificate: Option[File] = None) {
+  def toFormData: FormData = FormData(Map("url" -> url))
 
-  val maps: Seq[BodyPart] = Seq(
-    BodyPart(HttpEntity.apply(url), "url")
-  ) ++ certificate.map(BodyPart(_, "certificate"))
-
-  def toMultipartFormData = MultipartFormData(maps)
+  def toMultipartFormData = MultipartFormData(
+    Seq(BodyPart(HttpEntity.apply(url), "url"))
+      ++ certificate.map(BodyPart(_, "certificate"))
+  )
 }
 
 object SetWebHookReq {
-  def apply(url: String, certificate: File): SetWebHookReq = apply(url, Some(certificate))
+  def apply(url: String, certificate: File): MultipartFormData = apply(url, Some(certificate)).toMultipartFormData
+
+  def apply(url: String): FormData = apply(url, None).toFormData
+
+  def unset: FormData = apply("", None).toFormData
 }

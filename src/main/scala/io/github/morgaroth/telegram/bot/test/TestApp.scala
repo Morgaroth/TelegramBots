@@ -14,8 +14,5 @@ object TestApp {
     val as = ActorSystem("test-bot")
     import as.dispatcher
     as.actorOf(LongPoolingActor.props(args(0)))
-    as.scheduler.scheduleOnce(10 seconds) {
-      as.shutdown()
-    }
   }
 }

@@ -5,8 +5,8 @@ import java.io.File
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 import io.github.morgaroth.telegram.bot.api.base.methods.{GetUpdatesReq, Method0, Method1, SetWebHookReq}
 import io.github.morgaroth.telegram.bot.api.base.models.{Update, User}
-import spray.http.MultipartFormData
-import spray.httpx.SprayJsonSupport
+import spray.http.{FormData, StatusCodes, MultipartFormData}
+import spray.httpx.{UnsuccessfulResponseException, SprayJsonSupport}
 import spray.json.DefaultJsonProtocol
 
 /**
@@ -20,9 +20,9 @@ trait Methods extends SprayJsonSupport with DefaultJsonProtocol {
 
   lazy val getMe = new Method0[User]("getMe", botToken)
   lazy val getUpdates = new Method1[GetUpdatesReq, List[Update]]("getUpdates", botToken)
-  lazy val setWebHook = new Method1[MultipartFormData, String]("setWebhook", botToken)
-  lazy val unsetWebHook = new Method1[MultipartFormData, String]("setWebhook", botToken)
-    .compose[Unit]((a:Unit) => SetWebHookReq("").toMultipartFormData)
+  lazy val setWebHook = new Method1[MultipartFormData, Boolean]("setWebhook", botToken)
+  lazy val unsetWebHook = new Method1[FormData, Boolean]("setWebhook", botToken)
+    .compose[Unit](x => SetWebHookReq.unset)
 
 }
 
@@ -35,8 +35,16 @@ class LongPoolingActor(val botToken: String) extends Actor with ActorLogging wit
   import context.dispatcher
 
   getMe().onComplete(x => println(s"get me result $x"))
-  getUpdates(GetUpdatesReq()).onComplete(x => println(s"get me result $x"))
-  setWebHook(SetWebHookReq("https://example.com/sdfdsfasd/callback", Some(new File("certificate"))).toMultipartFormData)
+  private val eventualResponse = getUpdates(GetUpdatesReq())
+  eventualResponse.onSuccess { case updates => log.info(s"updates: $updates") }
+  eventualResponse.onFailure {
+    case ex: UnsuccessfulResponseException if ex.response.status == StatusCodes.Conflict =>
+      log.warning(s"webhook is set, unsetting...")
+      unsetWebHook().onComplete(x => log.info(s"unsetting webhook end with $x"))
+    case x => x.printStackTrace()
+  }
+
+  //  setWebHook(SetWebHookReq("https://example.com/sdfdsfasd/callback", Some(new File("certificate"))).toMultipartFormData)
 
   override def receive: Receive = {
     case _ =>
