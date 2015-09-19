@@ -6,8 +6,8 @@ import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 import akka.event.Logging
 import akka.io.IO
 import com.typesafe.config.ConfigFactory
-import io.github.morgaroth.telegram.bot.api.base.methods.SetWebHookReq
-import io.github.morgaroth.telegram.bot.api.base.updates.{Methods, WebHookService}
+import io.github.morgaroth.telegram.bot.api.base.methods.{Methods, SetWebHookReq}
+import io.github.morgaroth.telegram.bot.api.base.updates.WebHookService
 import spray.can.Http
 import spray.http.StatusCodes._
 import spray.http.{HttpEntity, StatusCode}

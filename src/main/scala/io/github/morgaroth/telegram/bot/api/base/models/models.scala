@@ -1,28 +1,28 @@
 package io.github.morgaroth.telegram.bot.api.base.models
 
-import java.io.File
-
 import io.github.morgaroth.telegram.bot.api.base.models.formats._
 import spray.http.{HttpEntity, BodyPart, MultipartFormData, FormData}
 import us.bleibinha.spray.json.macros.jsonstrict
 import us.bleibinha.spray.json.macros.lazyy.json
 import spray.json._
+import DefaultJsonProtocol._
 
 object formats {
   type MultiMaybeForm = Either[MultipartFormData, FormData]
   type Keyboard = Either[Either[ReplyKeyboardMarkup, ReplyKeyboardHide], ForceReply]
+  type DI = DummyImplicit
 
-  def convBP(t: (String, java.io.File)): BodyPart = BodyPart(t._2, t._1)
+  def convBP(t: (String, java.io.File))(implicit di: DI): BodyPart = BodyPart(t._2, t._1)
 
-  def convBP(t: (String, Int)): BodyPart = BodyPart(HttpEntity(t._2.toString), t._1)
+  def convBP(t: (String, Int))(implicit di: DI, di2: DI): BodyPart = BodyPart(HttpEntity(t._2.toString), t._1)
 
-  def convBP(t: (String, String)): BodyPart = BodyPart(HttpEntity(t._2), t._1)
+  def convBP(t: (String, String))(implicit di: DI, di2: DI, di3: DI): BodyPart = BodyPart(HttpEntity(t._2), t._1)
 
-  def convBP(t: (String, Keyboard)): BodyPart = BodyPart(HttpEntity(t._2.toJson.compactPrint), t._1)
+  def convBP(t: (String, Keyboard))(implicit di: DI, di2: DI, di3: DI, di4: DI): BodyPart = BodyPart(HttpEntity(t._2.toJson.compactPrint), t._1)
 
-  def convFD(t: (String, Int)) = t._1 -> t._2.toString
+  def convFD(t: (String, Int))(implicit di: DI) = t._1 -> t._2.toString
 
-  def convFD(t: (String, String)) = t
+  def convFD(t: (String, String))(implicit di: DI, di2: DI) = t
 
   def convFD(t: (String, Keyboard)) = t._1 -> t._2.toJson.compactPrint
 
