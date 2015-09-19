@@ -11,15 +11,6 @@ import us.bleibinha.spray.json.macros.lazyy.json
                         performer: String
                         )
 
-
-@json case class Chat(
-                       id: String,
-                       first_name: String,
-                       last_name: Option[String],
-                       title: String,
-                       username: Option[String]
-                       )
-
 @json case class Contact(
                           phone_number: String,
                           first_name: String,
@@ -35,6 +26,11 @@ import us.bleibinha.spray.json.macros.lazyy.json
                            file_size: Option[Int]
                            )
 
+@json case class GroupChat(
+                            id: String,
+                            title: String
+                            )
+
 @json case class Location(
                            longitude: Double,
                            latitude: Double
@@ -44,7 +40,7 @@ import us.bleibinha.spray.json.macros.lazyy.json
                           message_id: Int,
                           from: User,
                           date: Long,
-                          chat: Chat,
+                          chat: Either[User, GroupChat],
                           forward_from: Option[User],
                           forward_date: Option[Long],
                           text: Option[String],
@@ -61,7 +57,7 @@ import us.bleibinha.spray.json.macros.lazyy.json
                           new_chat_photo: Option[List[PhotoSize]],
                           delete_chat_photo: Option[Boolean],
                           group_chat_created: Option[Boolean],
-                          reply_to_message: Message
+                          reply_to_message: Option[Message]
                           )
 
 @json case class PhotoSize(
