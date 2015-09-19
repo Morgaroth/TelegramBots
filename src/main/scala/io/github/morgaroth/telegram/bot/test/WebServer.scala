@@ -3,6 +3,7 @@ package io.github.morgaroth.telegram.bot.test
 import java.io.File
 
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
+import akka.event.Logging
 import akka.io.IO
 import com.typesafe.config.ConfigFactory
 import io.github.morgaroth.telegram.bot.api.base.methods.SetWebHookReq
@@ -46,8 +47,11 @@ object WebServer extends App with Directives with Methods {
 
   import actorSystem.dispatcher
 
+
+  val log = Logging(actorSystem, getClass)
+
   sys.addShutdownHook {
-    unsetWebHook().onComplete(x => println(s"unset $x"))
+    unsetWebHook().onComplete(x => log.info(s"unset $x"))
     actorSystem.shutdown()
   }
 
@@ -64,9 +68,12 @@ object WebServer extends App with Directives with Methods {
   val certificatePath = config.getString("certificate")
   val botSecret = config.getString("bot-secret")
 
-  val req = SetWebHookReq(s"https://$domain/bots/$botSecret/callbacks", new File(certificatePath))
+  log.info(s"used certificate file $certificatePath")
+  private val certificateFile = new File(certificatePath)
+  log.info(s"used certificate can read? ${certificateFile.canRead}.")
+  val req = SetWebHookReq(s"https://$domain/bots/$botSecret/callbacks", certificateFile)
 
-  setWebHook(req.toMultipartFormData).onComplete(x => println(s"setting webhook $x"))
+  setWebHook(req.toMultipartFormData).onComplete(x => log.info(s"setting webhook $x"))
 
   val rootService = actorSystem.actorOf(Props(new RoutedHttpService(routes)))
 
