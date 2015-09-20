@@ -1,7 +1,7 @@
-package io.github.morgaroth.telegram.bot.test
+package io.github.morgaroth.telegram.bot.example
 
 import akka.actor.ActorSystem
-import io.github.morgaroth.telegram.bot.api.base.updates.LongPoolingActor
+import io.github.morgaroth.telegram.bot.core.engine.pooling.LongPoolingActor
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

@@ -1,7 +1,7 @@
-package io.github.morgaroth.telegram.bot.api.base.updates
+package io.github.morgaroth.telegram.bot.core.engine.pooling
 
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
-import io.github.morgaroth.telegram.bot.api.base.methods._
+import io.github.morgaroth.telegram.bot.core.api.methods.{GetUpdatesReq, Methods}
 import spray.http.StatusCodes
 import spray.httpx.UnsuccessfulResponseException
 

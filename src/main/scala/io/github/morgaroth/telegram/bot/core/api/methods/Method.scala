@@ -1,4 +1,4 @@
-package io.github.morgaroth.telegram.bot.api.base.methods
+package io.github.morgaroth.telegram.bot.core.api.methods
 
 import java.util.concurrent.TimeUnit
 
@@ -6,13 +6,13 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
-import jdk.nashorn.internal.runtime.regexp.joni.Config
 import spray.client.pipelining._
 import spray.httpx.SprayJsonSupport
 import spray.httpx.marshalling.Marshaller
-import spray.json.{JsonFormat, DefaultJsonProtocol}
-import scala.concurrent.duration._
+import spray.json.{DefaultJsonProtocol, JsonFormat}
+
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.language.postfixOps
 
 /**

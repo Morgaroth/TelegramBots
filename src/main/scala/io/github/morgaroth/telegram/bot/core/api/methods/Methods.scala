@@ -1,8 +1,8 @@
-package io.github.morgaroth.telegram.bot.api.base.methods
+package io.github.morgaroth.telegram.bot.core.api.methods
 
 import akka.actor.ActorSystem
-import io.github.morgaroth.telegram.bot.api.base.models._
-import io.github.morgaroth.telegram.bot.api.base.models.formats.MultiMaybeForm
+import io.github.morgaroth.telegram.bot.core.api.models._
+import io.github.morgaroth.telegram.bot.core.api.models.formats.MultiMaybeForm
 import spray.http.{FormData, MultipartFormData}
 import spray.httpx.SprayJsonSupport
 import spray.httpx.marshalling.Marshaller

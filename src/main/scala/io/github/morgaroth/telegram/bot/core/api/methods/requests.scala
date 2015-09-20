@@ -1,4 +1,4 @@
-package io.github.morgaroth.telegram.bot.api.base.methods
+package io.github.morgaroth.telegram.bot.core.api.methods
 
 import java.io.File
 

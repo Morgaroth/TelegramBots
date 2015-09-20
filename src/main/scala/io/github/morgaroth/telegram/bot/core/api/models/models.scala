@@ -1,6 +1,6 @@
-package io.github.morgaroth.telegram.bot.api.base.models
+package io.github.morgaroth.telegram.bot.core.api.models
 
-import io.github.morgaroth.telegram.bot.api.base.models.formats._
+import formats._
 import spray.http.{HttpEntity, BodyPart, MultipartFormData, FormData}
 import us.bleibinha.spray.json.macros.jsonstrict
 import us.bleibinha.spray.json.macros.lazyy.json

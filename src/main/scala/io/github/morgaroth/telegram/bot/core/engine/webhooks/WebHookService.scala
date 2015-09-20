@@ -1,4 +1,4 @@
-package io.github.morgaroth.telegram.bot.api.base.updates
+package io.github.morgaroth.telegram.bot.core.engine.webhooks
 
 import java.util.UUID
 
