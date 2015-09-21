@@ -1,8 +1,8 @@
 package io.github.morgaroth.telegram.bot.core.engine.webhooks
 
-import akka.pattern.ask
 import akka.actor._
 import akka.io.IO
+import akka.pattern.ask
 import akka.util.Timeout
 import io.github.morgaroth.telegram.bot.core.api.methods.{Methods, Response, SetWebHookReq}
 import io.github.morgaroth.telegram.bot.core.engine.webhooks.WebHookManager._
@@ -10,15 +10,14 @@ import io.github.morgaroth.telegram.bot.core.engine.{NewUpdate, WebHookSettings}
 import spray.can.Http
 import spray.routing.HttpServiceActor
 
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
 /**
  * Created by mateusz on 20.09.15.
  */
-
 object WebHookManager {
 
   //@formatter:off
