@@ -13,7 +13,7 @@ import us.bleibinha.spray.json.macros.lazyy.json
                                 limit: Option[Int] = None,
                                 timeout: Option[Int] = None)
 
-case class SetWebHookReq(url: String, certificate: Option[File] = None) {
+class SetWebHookReq(url: String, certificate: Option[File] = None) {
   def toFormData: FormData = FormData(Map("url" -> url))
 
   def toMultipartFormData = MultipartFormData(
@@ -23,6 +23,8 @@ case class SetWebHookReq(url: String, certificate: Option[File] = None) {
 }
 
 object SetWebHookReq {
+  def apply(url: String, cert: Option[File]): SetWebHookReq = new SetWebHookReq(url, cert)
+
   def apply(url: String, certificate: File): MultipartFormData = apply(url, Some(certificate)).toMultipartFormData
 
   def apply(url: String): FormData = apply(url, None).toFormData

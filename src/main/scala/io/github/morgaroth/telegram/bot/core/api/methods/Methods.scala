@@ -2,7 +2,7 @@ package io.github.morgaroth.telegram.bot.core.api.methods
 
 import akka.actor.ActorSystem
 import io.github.morgaroth.telegram.bot.core.api.models._
-import io.github.morgaroth.telegram.bot.core.api.models.formats.MultiMaybeForm
+import io.github.morgaroth.telegram.bot.core.api.models.formats.{DI, MultiMaybeForm}
 import spray.http.{FormData, MultipartFormData}
 import spray.httpx.SprayJsonSupport
 import spray.httpx.marshalling.Marshaller
@@ -25,7 +25,7 @@ trait Methods extends SprayJsonSupport with DefaultJsonProtocol {
 
   lazy val getUpdates = m1[GetUpdatesReq, List[Update]]("getUpdates")
   lazy val setWebHook = m1[MultipartFormData, Boolean]("setWebhook")
-  lazy val unsetWebHook = m1[FormData, Boolean]("setWebhook").compose[Unit](x => SetWebHookReq.unset)
+  lazy val unsetWebHook = m1[FormData, Boolean]("setWebhook")
 
   def m1m[R: Marshaller](name: String) = m1[R, Message](name)
 
@@ -41,5 +41,14 @@ trait Methods extends SprayJsonSupport with DefaultJsonProtocol {
   lazy val sendChatAction = m1[SendChatAction, Boolean]("sendChatAction")
   lazy val getUserProfilePhotos = m1[GetUserProfilePhotos, UserProfilePhotos]("getUserProfilePhotos")
   lazy val getFile = m1[GetFile, File]("getFile")
+}
 
+object Methods {
+  def apply(botsToken: String, as: ActorSystem): Methods = new Methods {
+    override implicit def actorSystem: ActorSystem = as
+
+    override def botToken: String = botsToken
+  }
+
+  def apply(botToken: String)(implicit as: ActorSystem, di: DI): Methods = apply(botToken, as)
 }

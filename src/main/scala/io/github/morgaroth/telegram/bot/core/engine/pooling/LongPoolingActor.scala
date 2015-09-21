@@ -1,7 +1,7 @@
 package io.github.morgaroth.telegram.bot.core.engine.pooling
 
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
-import io.github.morgaroth.telegram.bot.core.api.methods.{GetUpdatesReq, Methods}
+import io.github.morgaroth.telegram.bot.core.api.methods.{SetWebHookReq, GetUpdatesReq, Methods}
 import spray.http.StatusCodes
 import spray.httpx.UnsuccessfulResponseException
 
@@ -22,7 +22,7 @@ class LongPoolingActor(val botToken: String) extends Actor with ActorLogging wit
   eventualResponse.onFailure {
     case ex: UnsuccessfulResponseException if ex.response.status == StatusCodes.Conflict =>
       log.warning(s"webhook is set, unsetting...")
-      unsetWebHook().onComplete(x => log.info(s"unsetting webhook end with $x"))
+      unsetWebHook(SetWebHookReq.unset).onComplete(x => log.info(s"unsetting webhook end with $x"))
     case x => x.printStackTrace()
   }
 

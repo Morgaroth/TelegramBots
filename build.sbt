@@ -36,7 +36,8 @@ libraryDependencies ++= Seq(
   Spray.JsonAnnotation.`0.4.2`,
   Joda.Time.`2.8.2`,
   Joda.Convert.`1.7`,
-  Akka.Actor.`2.3.12`
+  Akka.Actor.`2.3.12`,
+  Ficus.Config.`1.1.2`
 )
 
 addCompilerPlugin(Paradise.`2.1.0-M5`)
