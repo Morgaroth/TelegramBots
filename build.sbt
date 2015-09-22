@@ -37,7 +37,8 @@ libraryDependencies ++= Seq(
   Joda.Time.`2.8.2`,
   Joda.Convert.`1.7`,
   Akka.Actor.`2.3.12`,
-  Ficus.Config.`1.1.2`
+  Ficus.Config.`1.1.2`,
+  Morgaroth.UtilsMongo.`1.2.10`
 )
 
 addCompilerPlugin(Paradise.`2.1.0-M5`)

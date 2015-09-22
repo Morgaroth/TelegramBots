@@ -27,7 +27,7 @@ object WebHookManager {
   case class UnRegister(botId: String, botToken: String)
   case object Unregistered
   case class UnregisteringFailed(reason: Either[Response[Boolean], Throwable])
-  private[WebHookManager] case class BotDefinition(bot: ActorRef, botToken: String)
+  private[WebHookManager] case class BotDef(bot: ActorRef, botToken: String)
   //@formatter:on
 
 
@@ -39,7 +39,7 @@ class WebHookManager(settings: WebHookSettings) extends Actor with ActorLogging 
   import context.dispatcher
 
   implicit val as = context.system
-  var registered = Map.empty[String, BotDefinition]
+  var registered = Map.empty[String, BotDef]
   lazy val deadLetters = context.actorOf(Props[DeadLetters], "dead-updates")
 
   lazy val service = bind(new WebHookService(self))
@@ -68,7 +68,7 @@ class WebHookManager(settings: WebHookSettings) extends Actor with ActorLogging 
     case Register(botId, botToken, botActor) =>
       getService
       log.info(s"Registering botId $botId with updates receiver $botActor.")
-      registered += botId -> BotDefinition(botActor, botToken)
+      registered += botId -> BotDef(botActor, botToken)
       val s = sender()
       setWebHook(botId, botToken).onComplete {
         case Success(Response(true, _, _)) => s ! Registered
@@ -105,7 +105,7 @@ class WebHookManager(settings: WebHookSettings) extends Actor with ActorLogging 
 
   def unregisterAll() = {
     registered.foreach {
-      case (botId, BotDefinition(bot, botToken)) =>
+      case (botId, BotDef(bot, botToken)) =>
         log.info(s"Unregistering botId $botId(${registered.get(botId)}) on manager shutdown.")
         unsetWebHook(botToken).onComplete {
           case Success(Response(true, _, _)) => bot ! Unregistered
