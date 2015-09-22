@@ -5,8 +5,8 @@ import akka.io.IO
 import akka.pattern.ask
 import akka.util.Timeout
 import io.github.morgaroth.telegram.bot.core.api.methods.{Methods, Response, SetWebHookReq}
+import io.github.morgaroth.telegram.bot.core.engine._
 import io.github.morgaroth.telegram.bot.core.engine.webhooks.WebHookManager._
-import io.github.morgaroth.telegram.bot.core.engine.{NewUpdate, WebHookSettings}
 import spray.can.Http
 import spray.routing.HttpServiceActor
 
@@ -20,16 +20,7 @@ import scala.util.{Failure, Success}
  */
 object WebHookManager {
 
-  //@formatter:off
-  case class Register(botId: String, botToken: String, botActor: ActorRef)
-  case object Registered
-  case class RegisteringFailed(reason: Either[Response[Boolean], Throwable])
-  case class UnRegister(botId: String, botToken: String)
-  case object Unregistered
-  case class UnregisteringFailed(reason: Either[Response[Boolean], Throwable])
   private[WebHookManager] case class BotDef(bot: ActorRef, botToken: String)
-  //@formatter:on
-
 
   def props(settings: WebHookSettings) = Props(classOf[WebHookManager], settings)
 }

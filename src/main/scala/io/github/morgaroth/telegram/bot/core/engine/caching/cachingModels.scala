@@ -1,7 +1,7 @@
 package io.github.morgaroth.telegram.bot.core.engine.caching
 
 import java.util.UUID
-
+import com.novus.salat.global.ctx
 import com.mongodb.casbah.commons.MongoDBObject
 import com.novus.salat.annotations._
 import com.typesafe.config.Config

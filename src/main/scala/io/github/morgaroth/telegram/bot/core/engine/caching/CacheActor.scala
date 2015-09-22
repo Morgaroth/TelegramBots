@@ -3,7 +3,7 @@ package io.github.morgaroth.telegram.bot.core.engine.caching
 import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, Props}
-import com.typesafe.config.Config
+import com.typesafe.config.{Config, ConfigFactory}
 import io.github.morgaroth.telegram.bot.core.engine._
 import io.github.morgaroth.telegram.bot.core.engine.caching.CacheActor.CleanOld
 import net.ceedubs.ficus.Ficus._
@@ -22,13 +22,27 @@ object CacheActor {
 
   private[CacheActor] case object CleanOld
 
-  def RAMProps = Props(classOf[RAMCacheActor])
+  def RAMProps(retention: FiniteDuration) = Props(classOf[RAMCacheActor], retention)
 
   def DBProps(dbCfg: Config) = Props(classOf[DBCacheActor], dbCfg)
+
+  def DBProps(mongoUri: String, collectionName: String) = DBProps(mongoUri, Some(collectionName), None)
+
+  def DBProps(mongoUri: String, retention: FiniteDuration) = DBProps(mongoUri, None, Some(retention))
+
+  def DBProps(mongoUri: String, collectionName: String, retention: FiniteDuration) = DBProps(mongoUri, Some(collectionName), Some(retention))
+
+  def DBProps(mongoUri: String, collectionName: Option[String], retention: Option[FiniteDuration]) = {
+    val collectionNameEntry = collectionName.map(x => s", name=$x, ").getOrElse("")
+    val ret = retention.map(x => s", retention=${x.toSeconds} s, ").getOrElse("")
+    Props(classOf[DBCacheActor], ConfigFactory.parseString( s"""uri=$mongoUri $collectionNameEntry  $ret"""))
+  }
 }
 
 trait CacheActor extends Actor with ActorLogging {
   def updatesRetention: FiniteDuration
+
+  import context.dispatcher
 
   def barrier = DateTime.now().minus(updatesRetention.toMillis)
 

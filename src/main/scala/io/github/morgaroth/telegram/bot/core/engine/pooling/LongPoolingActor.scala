@@ -3,6 +3,7 @@ package io.github.morgaroth.telegram.bot.core.engine.pooling
 import akka.actor._
 import io.github.morgaroth.telegram.bot.core.api.methods.{GetUpdatesReq, Methods, Response}
 import io.github.morgaroth.telegram.bot.core.api.models.Update
+import io.github.morgaroth.telegram.bot.core.engine.{Register, Registered, UnRegister, Unregistered}
 import spray.http.StatusCodes
 import spray.httpx.UnsuccessfulResponseException
 
@@ -17,15 +18,15 @@ object LongPoolingActor {
 
   private[LongPoolingActor] case object Poll
 
-  def props(botActor: ActorRef, botName: String, botToken: String) =
-    Props(classOf[LongPoolingActor], botActor, botName, botToken)
+  def props(botName: String, botToken: String) =
+    Props(classOf[LongPoolingActor], botName, botToken)
 
   implicit def wrapToMaxoption[A](tr: TraversableOnce[A]): Object {def maxOpt: Option[A]} = new {
     def maxOpt = if (tr.isEmpty) None else Some(tr.max)
   }
 }
 
-class LongPoolingActor(botActor: ActorRef, botName: String, val botToken: String) extends Actor with ActorLogging with Methods {
+class LongPoolingActor(botName: String, val botToken: String) extends Actor with ActorLogging with Methods {
 
   import LongPoolingActor._
   import context.dispatcher
@@ -34,14 +35,31 @@ class LongPoolingActor(botActor: ActorRef, botName: String, val botToken: String
 
   val hardSelf = self
   var offset: Option[Int] = None
+  var botActor = context.system.deadLetters
 
   def dispatchPoll(): Unit = {
     hardSelf ! Poll
   }
 
-  dispatchPoll()
+  override def receive: Receive = registering
 
-  override def receive: Receive = {
+  def registering: Receive = {
+    case Register(bn, bt, ref) if bn == botName && bt == botToken && ref == sender() =>
+      log.info(s"registering BotActor ${sender()} in LongPoolActor $self")
+      botActor = sender()
+      context become working
+      dispatchPoll()
+      botActor ! Registered
+    case unhandled =>
+      log.warning(s"unhandled message $unhandled")
+  }
+
+  def working: Receive = {
+    case UnRegister(_, _) =>
+      botActor = context.system.deadLetters
+      context become registering
+      sender() ! Unregistered
+
     case Poll =>
       log.info(s"dispatching poll to bot $botName")
       getUpdates(GetUpdatesReq(offset, 10, 10 seconds)).onComplete(hardSelf ! _)
@@ -63,6 +81,10 @@ class LongPoolingActor(botActor: ActorRef, botName: String, val botToken: String
     case Failure(ex) =>
       log.error(ex, s"pooling bot $botName end with exception")
       dispatchPoll()
+
+    case unhandled =>
+      log.warning(s"unhandled message $unhandled")
+
   }
 
   override def actorSystem: ActorSystem = context.system
