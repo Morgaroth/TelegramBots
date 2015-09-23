@@ -1,5 +1,6 @@
 package io.github.morgaroth.telegram.bot.core.api.methods
 
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
@@ -44,13 +45,16 @@ trait MethodsCommons extends SprayJsonSupport with DefaultJsonProtocol {
   def uri(method: String): String = {
     s"$service/bot$botToken/$method"
   }
+
+  def loggedSendReceive = {
+    val reqIq = UUID.randomUUID()
+    logRequest(request => log.debug(s"req $reqIq ${request.toString.replaceAll("[\n\t]+", " ")}")) ~> sendReceive ~> logResponse(x => log.debug(s"req $reqIq ${x.toString}"))
+  }
 }
 
 class Method1[D: Marshaller, R: JsonFormat](endpoint: String, val botToken: String)(implicit val as: ActorSystem) extends ((D) => Future[Response[R]]) with MethodsCommons {
   override def apply(data: D): Future[Response[R]] = {
-    //    val pipe = sendReceive ~> logResponse(x => log.info(x.toString)) ~> unmarshal[Response[R]]
-    //    val pipe = logRequest(request => log.info(s"request to $endpoint is $request, entity ${request.entity.asString}")) ~> sendReceive ~> logResponse(x => log.info(x.toString)) ~> unmarshal[Response[R]]
-    val pipe = sendReceive ~> unmarshal[Response[R]]
+    val pipe = loggedSendReceive ~> unmarshal[Response[R]]
     pipe(Post(uri(endpoint), data))
   }
 }
@@ -59,7 +63,7 @@ class Method0[R: JsonFormat](endpoint: String, val botToken: String)(implicit va
   this: MethodsCommons =>
 
   override def apply(): Future[Response[R]] = {
-    val pipe = sendReceive ~> unmarshal[Response[R]]
+    val pipe = loggedSendReceive ~> unmarshal[Response[R]]
     pipe(Post(uri(endpoint)))
   }
 }

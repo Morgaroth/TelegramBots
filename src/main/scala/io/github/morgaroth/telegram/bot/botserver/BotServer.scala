@@ -2,7 +2,7 @@ package io.github.morgaroth.telegram.bot.botserver
 
 import java.io.File
 
-import io.github.morgaroth.telegram.bot.bots.TestBot
+import io.github.morgaroth.telegram.bot.bots.ForwarderBot
 
 import scala.language.postfixOps
 
@@ -16,9 +16,10 @@ object BotServer extends BotsApp {
   def main(args: Array[String]) {
 
     val bots = List(
-      "testBot" -> TestBot.props
+      "ForwadingBot" -> ForwarderBot.props
     )
     val configFile = new File(args(0))
+    println(configFile.getAbsolutePath)
     startBots(bots, configFile)
   }
 

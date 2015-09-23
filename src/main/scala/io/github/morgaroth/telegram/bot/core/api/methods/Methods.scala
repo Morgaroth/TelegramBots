@@ -27,7 +27,7 @@ trait Methods extends SprayJsonSupport with DefaultJsonProtocol {
   lazy val setWebHook = m1[MultipartFormData, Boolean]("setWebhook")
   lazy val unsetWebHook = m1[FormData, Boolean]("setWebhook")
 
-  def m1m[R: Marshaller](name: String) = m1[R, Message](name)
+  def m1m[R: Marshaller](name: String): Method1[R, Message] = m1[R, Message](name)
 
   lazy val sendPhoto = m1m[MultiMaybeForm]("sendPhoto").compose[SendPhoto](_.toForm)
   lazy val sendAudio = m1m[MultiMaybeForm]("sendAudio").compose[SendAudio](_.toForm)
@@ -38,7 +38,7 @@ trait Methods extends SprayJsonSupport with DefaultJsonProtocol {
 
   lazy val sendLocation = m1m[SendLocation]("sendLocation")
   lazy val sendMessage = m1m[SendMessage]("sendMessage")
-  lazy val forwardMessage = m1m[ForwardMessage]("forwardMessage")
+  lazy val forwardMessage: Method1[ForwardMessage, Message] = m1m[ForwardMessage]("forwardMessage")
   lazy val sendChatAction = m1[SendChatAction, Boolean]("sendChatAction")
   lazy val getUserProfilePhotos = m1[GetUserProfilePhotos, UserProfilePhotos]("getUserProfilePhotos")
   lazy val getFile = m1[GetFile, File]("getFile")

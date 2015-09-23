@@ -25,7 +25,7 @@ trait BotsApp {
     val botMother = as.actorOf(BotMother.props(None))
 
     val botTokens = ConfigFactory.parseFile(configFile).as[List[BotSecret]]("bots").groupBy(_.botName).mapValues(_.head)
-
+    log.info(s"parsed bots: $botTokens")
     val botsToLoad = bots.map {
       case (name, props) => botTokens.get(name).map(x => Some(x -> props)).getOrElse {
         log.warning(s"bot $name isn't defined in configuration, will not be started")

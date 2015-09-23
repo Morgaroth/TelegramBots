@@ -3,9 +3,9 @@ package io.github.morgaroth.telegram.bot.core.api.models
 import io.github.morgaroth.telegram.bot.core.api.models.formats._
 import spray.http.{BodyPart, FormData, HttpEntity, MultipartFormData}
 import spray.json._
+import spray.json.DefaultJsonProtocol._
 import us.bleibinha.spray.json.macros.jsonstrict
 import us.bleibinha.spray.json.macros.lazyy.json
-
 sealed trait Command
 
 
@@ -76,7 +76,7 @@ object formats {
  * https://core.telegram.org/bots/api#groupchat
  */
 @json case class GroupChat(
-                            id: String,
+                            id: Int,
                             title: String
                             )
 
@@ -113,7 +113,9 @@ object formats {
                           delete_chat_photo: Option[Boolean],
                           group_chat_created: Option[Boolean],
                           reply_to_message: Option[Message]
-                          )
+                          ) {
+  def chatId = chat.fold(_.id, _.id)
+}
 
 /**
  * https://core.telegram.org/bots/api#photosize
@@ -184,7 +186,7 @@ object formats {
  */
 @json case class Update(
                          update_id: Int,
-                         message: Option[Message]
+                         message: Message
                          )
 
 /**

@@ -8,7 +8,8 @@ import io.github.morgaroth.telegram.bot.core.api.models._
 import io.github.morgaroth.telegram.bot.core.engine._
 import io.github.morgaroth.telegram.bot.core.engine.core.BotActor.{Handled, HandledUpdate, InitializationFailed, Initialized}
 
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
 import scala.language.{implicitConversions, reflectiveCalls}
 import scala.util.{Failure, Success}
 
@@ -23,7 +24,7 @@ object BotActor {
 
   case class Handled(id: UUID)
 
-  case class HandledUpdate(u: NewUpdate, response: Option[Command])
+  case class HandledUpdate(u: NewUpdate, response: Command)
 
   case class InitializationFailed(reason: Either[Response[Boolean], Throwable]) extends State
 
@@ -49,7 +50,7 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
     def logoutResult = {
       f.onComplete {
         case Success(result) =>
-          log.debug(s"request end with $result")
+          log.info(s"request end with $result")
         case Failure(t) =>
           log.error(t, "error during executing request")
       }
@@ -91,21 +92,22 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
       log.debug(s"update ${h.id} marked as handled")
       cacheActor ! h
 
-    case HandledUpdate(update, None) =>
+    case HandledUpdate(update, response) if handleCommands(sender()).isDefinedAt(response) =>
+      log.info(s"handling return from worker $response")
       self ! Handled(update.id)
+      handleCommands(sender())(response)
 
-    case HandledUpdate(update, Some(response)) =>
-      self ! Handled(update.id)
+    case someCommand:Command if handleCommands(sender()).isDefinedAt(someCommand) =>
+      log.info(s"handling command $someCommand")
       handleCommands(sender())
 
-    case someCommand if handleCommands(sender()).isDefinedAt(someCommand) =>
-      handleCommands(sender())
+    case OK(id) =>
 
     case unhandled =>
       log.warning(s"unhandled message $unhandled")
   }
 
-  def handleCommands(requester: ActorRef): PartialFunction[Any, Unit] = {
+  def handleCommands(requester: ActorRef): PartialFunction[Command, Unit] = {
     case c: SendPhoto => sendPhoto(c).logoutResult
     case c: SendAudio => sendAudio(c).logoutResult
     case c: SendChatAction => sendChatAction(c).logoutResult
@@ -115,6 +117,10 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
     case c: SendSticker => sendSticker(c).logoutResult
     case c: SendVideo => sendVideo(c).logoutResult
     case c: SendVoice => sendVoice(c).logoutResult
+    case c: ForwardMessage =>
+      log.info(s"forwarding message $c")
+      val apply: Future[Response[Message]] = forwardMessage.apply(c)
+      Await.result(apply, 20 seconds)
     case c: GetFile => getFile(c).logoutResult
     case c: GetUserProfilePhotos => getUserProfilePhotos(c).logoutResult
   }

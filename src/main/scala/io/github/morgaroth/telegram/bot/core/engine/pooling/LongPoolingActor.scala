@@ -1,9 +1,11 @@
 package io.github.morgaroth.telegram.bot.core.engine.pooling
 
+import java.util.UUID
+
 import akka.actor._
 import io.github.morgaroth.telegram.bot.core.api.methods.{GetUpdatesReq, Methods, Response}
 import io.github.morgaroth.telegram.bot.core.api.models.Update
-import io.github.morgaroth.telegram.bot.core.engine.{Register, Registered, UnRegister, Unregistered}
+import io.github.morgaroth.telegram.bot.core.engine._
 import spray.http.StatusCodes
 import spray.httpx.UnsuccessfulResponseException
 
@@ -62,14 +64,18 @@ class LongPoolingActor(botName: String, val botToken: String) extends Actor with
       sender() ! Unregistered
 
     case Poll =>
-      log.info(s"dispatching poll to bot $botName")
+      log.debug(s"dispatching poll to bot $botName")
       getUpdates(GetUpdatesReq(offset, 10, 10 seconds)).onComplete(hardSelf ! _)
 
+    case Success(r@Response(true, Right(Nil), _)) =>
+      log.debug(s"received empty updates list")
+      dispatchPoll()
+
     case Success(r@Response(true, Right(updates: List[Update]), _)) =>
-      log.info(s"for bot $botName received updates $updates")
+      log.info(s"received updates $updates")
       val nextId = updates.map(_.update_id).maxOpt.map(_ + 1)
-      //      offset = nextId
-      updates.sortBy(_.update_id).foreach(botActor ! _)
+      offset = nextId
+      updates.sortBy(_.update_id).foreach(u => botActor ! NewUpdate(UUID.randomUUID(), botName, u))
       dispatchPoll()
 
     case Success(response: Response[List[Update]]) =>
