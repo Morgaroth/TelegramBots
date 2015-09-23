@@ -19,17 +19,17 @@ object BotActor {
   def props(botName: String, botToken: String, cacheActor: ActorRef, updatesActor: ActorRef, worker: ActorRef): Props =
     Props(classOf[BotActor], botName, botToken, cacheActor, updatesActor, worker)
 
-  case object GetState
+  trait State
 
   case class Handled(id: UUID)
 
   case class HandledUpdate(u: NewUpdate, response: Option[Command])
 
-  trait State
+  case class InitializationFailed(reason: Either[Response[Boolean], Throwable]) extends State
+
+  case object GetState
 
   case object Initialized extends State
-
-  case class InitializationFailed(reason: Either[Response[Boolean], Throwable]) extends State
 
 }
 
@@ -44,6 +44,21 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
   }
 
   updatesActor ! Register(botName, botToken, self)
+
+  implicit def wrapIntoLoggable[T](f: Future[Response[T]]): Object {def logoutResult: Future[Response[T]]} = new {
+    def logoutResult = {
+      f.onComplete {
+        case Success(result) =>
+          log.debug(s"request end with $result")
+        case Failure(t) =>
+          log.error(t, "error during executing request")
+      }
+      f
+    }
+
+  }
+
+  override def receive: Receive = initializing
 
   def initializing: Receive = {
     case Registered =>
@@ -103,22 +118,6 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
     case c: GetFile => getFile(c).logoutResult
     case c: GetUserProfilePhotos => getUserProfilePhotos(c).logoutResult
   }
-
-
-  implicit def wrapIntoLoggable[T](f: Future[Response[T]]): Object {def logoutResult: Future[Response[T]]} = new {
-    def logoutResult = {
-      f.onComplete {
-        case Success(result) =>
-          log.debug(s"request end with $result")
-        case Failure(t) =>
-          log.error(t, "error during executing request")
-      }
-      f
-    }
-
-  }
-
-  override def receive: Receive = initializing
 
   override implicit def actorSystem: ActorSystem = context.system
 }

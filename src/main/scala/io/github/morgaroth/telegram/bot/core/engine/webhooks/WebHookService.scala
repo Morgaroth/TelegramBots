@@ -18,16 +18,6 @@ import scala.language.{implicitConversions, reflectiveCalls}
  */
 class WebHookService(webHookManager: ActorRef)(implicit actorSystem: ActorSystem) extends Directives with SprayJsonSupport {
   val log = Logging(actorSystem, getClass)
-
-  def handleUpdate(reqID: UUID, botId: String)(request: Response[Update]) = {
-    webHookManager ! NewUpdate(reqID, botId, request.result.right.get)
-    StatusCodes.OK
-  }
-
-  implicit def normalizable(str: String): Object {def normalize: String} = new {
-    def normalize = str.replaceAll( """[\n\t\r]+""", " ")
-  }
-
   //@formatter:off
   val route = {
     pathEndOrSingleSlash(get(complete("Hello from WebHook service"))) ~
@@ -46,6 +36,15 @@ class WebHookService(webHookManager: ActorRef)(implicit actorSystem: ActorSystem
         }
       }
     }
+  }
+
+  def handleUpdate(reqID: UUID, botId: String)(request: Response[Update]) = {
+    webHookManager ! NewUpdate(reqID, botId, request.result.right.get)
+    StatusCodes.OK
+  }
+
+  implicit def normalizable(str: String): Object {def normalize: String} = new {
+    def normalize = str.replaceAll( """[\n\t\r]+""", " ")
   }
   //@formatter:on
 }

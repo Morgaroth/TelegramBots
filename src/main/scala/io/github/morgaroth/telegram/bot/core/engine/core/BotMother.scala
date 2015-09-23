@@ -1,9 +1,9 @@
 package io.github.morgaroth.telegram.bot.core.engine.core
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import io.github.morgaroth.telegram.bot.core.engine.{Register, WebHookSettings}
+import io.github.morgaroth.telegram.bot.core.engine.WebHookSettings
 import io.github.morgaroth.telegram.bot.core.engine.caching.CacheActor
-import io.github.morgaroth.telegram.bot.core.engine.core.BotMother.{BotRegistered, RegisterBot}
+import io.github.morgaroth.telegram.bot.core.engine.core.BotMother.RegisterBot
 import io.github.morgaroth.telegram.bot.core.engine.pooling.LongPoolingActor
 import io.github.morgaroth.telegram.bot.core.engine.webhooks.WebHookManager
 
@@ -13,13 +13,14 @@ import io.github.morgaroth.telegram.bot.core.engine.webhooks.WebHookManager
 
 object BotMother {
 
+  def props: Props = props(None)
+
+  def props(webHookSettings: Option[WebHookSettings]): Props = Props(classOf[BotMother], webHookSettings)
+
   case class RegisterBot(botSettings: BotSettings)
 
   case class BotRegistered(botActor: ActorRef)
 
-  def props(webHookSettings: Option[WebHookSettings]): Props = Props(classOf[BotMother], webHookSettings)
-
-  def props: Props = props(None)
 }
 
 class BotMother(webhookMaybe: Option[WebHookSettings]) extends Actor with ActorLogging {
@@ -41,6 +42,6 @@ class BotMother(webhookMaybe: Option[WebHookSettings]) extends Actor with ActorL
           actorOf(LongPoolingActor.props(sett.botName, sett.botToken), s"${sett.botName}-long-poll")
       }
       val botActor = actorOf(BotActor.props(sett.botName, sett.botToken, cacheRef, updatesProvider, sender()), s"${sett.botName}-bot")
-//      sender() ! BotRegistered(botActor)
+    //      sender() ! BotRegistered(botActor)
   }
 }

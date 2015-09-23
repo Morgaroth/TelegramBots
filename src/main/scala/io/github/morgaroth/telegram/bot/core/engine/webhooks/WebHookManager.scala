@@ -20,20 +20,20 @@ import scala.util.{Failure, Success}
  */
 object WebHookManager {
 
-  private[WebHookManager] case class BotDef(bot: ActorRef, botToken: String)
-
   def props(settings: WebHookSettings) = Props(classOf[WebHookManager], settings)
+
+  private[WebHookManager] case class BotDef(bot: ActorRef, botToken: String)
 }
 
 class WebHookManager(settings: WebHookSettings) extends Actor with ActorLogging {
 
   import context.dispatcher
 
-  implicit val as = context.system
-  var registered = Map.empty[String, BotDef]
   lazy val deadLetters = context.actorOf(Props[DeadLetters], "dead-updates")
-
   lazy val service = bind(new WebHookService(self))
+  implicit val as = context.system
+  val domain = settings.domain.stripPrefix("https://").stripPrefix("http://").stripSuffix("/")
+  var registered = Map.empty[String, BotDef]
 
   def bind(service: WebHookService) = {
     val serviceActorProps = Props(new HttpServiceActor {
@@ -45,12 +45,6 @@ class WebHookManager(settings: WebHookSettings) extends Actor with ActorLogging 
     log.info(s"Binding WebHookService end with $result")
     service
   }
-
-  def unbind() = {
-    IO(Http) ! Http.Unbind
-  }
-
-  def getService = service
 
   override def receive: Receive = {
     case update: NewUpdate =>
@@ -81,18 +75,24 @@ class WebHookManager(settings: WebHookSettings) extends Actor with ActorLogging 
       log.warning(s"Unhandled message $unhandled.")
   }
 
-  val domain = settings.domain.stripPrefix("https://").stripPrefix("http://").stripSuffix("/")
+  def getService = service
 
   def setWebHook(botId: String, botToken: String): Future[Response[Boolean]] = {
     val whUrl = urlForBot(botId)
     Methods(botToken).setWebHook(SetWebHookReq(whUrl, settings.certificate).toMultipartFormData)
   }
 
-  def unsetWebHook(botToken: String): Future[Response[Boolean]] = {
-    Methods(botToken).unsetWebHook(SetWebHookReq.unset)
+  def urlForBot(botId: String): String = s"https://$domain/callbacks/$botId"
+
+  override def postStop(): Unit = {
+    unbind()
+    unregisterAll()
+    super.postStop()
   }
 
-  def urlForBot(botId: String): String = s"https://$domain/callbacks/$botId"
+  def unbind() = {
+    IO(Http) ! Http.Unbind
+  }
 
   def unregisterAll() = {
     registered.foreach {
@@ -106,10 +106,8 @@ class WebHookManager(settings: WebHookSettings) extends Actor with ActorLogging 
     }
   }
 
-  override def postStop(): Unit = {
-    unbind()
-    unregisterAll()
-    super.postStop()
+  def unsetWebHook(botToken: String): Future[Response[Boolean]] = {
+    Methods(botToken).unsetWebHook(SetWebHookReq.unset)
   }
 }
 

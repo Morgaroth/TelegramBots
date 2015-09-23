@@ -3,7 +3,6 @@ package io.github.morgaroth.telegram.bot.core.api.methods
 import java.io.File
 
 import spray.http._
-import us.bleibinha.spray.json.macros.lazyy.json
 
 import scala.concurrent.duration.FiniteDuration
 

@@ -1,11 +1,10 @@
 package io.github.morgaroth.telegram.bot.core.api.models
 
-import formats._
-import spray.http.{HttpEntity, BodyPart, MultipartFormData, FormData}
+import io.github.morgaroth.telegram.bot.core.api.models.formats._
+import spray.http.{BodyPart, FormData, HttpEntity, MultipartFormData}
+import spray.json._
 import us.bleibinha.spray.json.macros.jsonstrict
 import us.bleibinha.spray.json.macros.lazyy.json
-import spray.json._
-import DefaultJsonProtocol._
 
 sealed trait Command
 

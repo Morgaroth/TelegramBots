@@ -1,7 +1,5 @@
 package io.github.morgaroth.telegram.bot.core.engine.core
 
-import akka.actor.Props
-
 import scala.concurrent.duration.FiniteDuration
 
 /**
@@ -21,7 +19,6 @@ object LongPool extends UpdatesSource
 
 
 case class BotSettings(
-                        botProps: Props,
                         botName: String,
                         botToken: String,
                         cacheType: CacheType,

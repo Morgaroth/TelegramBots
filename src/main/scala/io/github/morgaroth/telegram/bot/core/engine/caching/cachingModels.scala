@@ -1,9 +1,10 @@
 package io.github.morgaroth.telegram.bot.core.engine.caching
 
 import java.util.UUID
-import com.novus.salat.global.ctx
+
 import com.mongodb.casbah.commons.MongoDBObject
 import com.novus.salat.annotations._
+import com.novus.salat.global.ctx
 import com.typesafe.config.Config
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.utils.mongodb.salat.MongoDAOStringKey
@@ -20,9 +21,9 @@ trait NewUpdateDBBaseDao {
 
   import net.ceedubs.ficus.Ficus._
 
-  def cfg: Config
-
   val dao = new MongoDAOStringKey[NewUpdateDB](cfg, cfg.as[Option[String]]("name").getOrElse("updates")) {}
+
+  def cfg: Config
 
   def save(update: NewUpdate) = {
     dao.save(NewUpdateDB(update.id.toString, update))

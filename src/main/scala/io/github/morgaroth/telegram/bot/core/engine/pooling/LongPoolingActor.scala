@@ -16,14 +16,15 @@ import scala.util.{Failure, Success}
  */
 object LongPoolingActor {
 
-  private[LongPoolingActor] case object Poll
-
   def props(botName: String, botToken: String) =
     Props(classOf[LongPoolingActor], botName, botToken)
 
   implicit def wrapToMaxoption[A: Ordering](tr: TraversableOnce[A]): Object {def maxOpt: Option[A]} = new {
     def maxOpt = if (tr.isEmpty) None else Some(tr.max)
   }
+
+  private[LongPoolingActor] case object Poll
+
 }
 
 class LongPoolingActor(botName: String, val botToken: String) extends Actor with ActorLogging with Methods {
