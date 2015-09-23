@@ -41,7 +41,7 @@ class WebHookManager(settings: WebHookSettings) extends Actor with ActorLogging 
     })
     val rootService = as.actorOf(serviceActorProps)
     implicit val tm: Timeout = 10 seconds
-    val result = Await.result(IO(Http) ? Http.Bind(rootService, "0.0.0.0", settings.bindPort), 10 seconds)
+    val result = Await.result(IO(Http) ? Http.Bind(rootService, "0.0.0.0", settings.port), 10 seconds)
     log.info(s"Binding WebHookService end with $result")
     service
   }

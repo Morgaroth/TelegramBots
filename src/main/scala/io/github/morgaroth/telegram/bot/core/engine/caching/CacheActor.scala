@@ -22,6 +22,8 @@ object CacheActor {
 
   private[CacheActor] case object CleanOld
 
+  def NoProps = Props[NoCacheActor]
+
   def RAMProps(retention: FiniteDuration) = Props(classOf[RAMCacheActor], retention)
 
   def DBProps(dbCfg: Config): Props = Props(classOf[DBCacheActor], dbCfg)
@@ -121,4 +123,12 @@ class DBCacheActor(dbConfig: Config) extends CacheActor {
   override def markHandled(id: UUID): Future[Unit] = Future(dao.remove(id))
 
   override def cleanOld(): Future[Unit] = Future(dao.dropOld(barrier))
+}
+
+class NoCacheActor extends Actor {
+  override def receive: Actor.Receive = {
+    case CacheUpdate(update) =>
+    case UpdateHandled(id) =>
+    case GetRemaining(botId) => sender() ! Remaining(List.empty)
+  }
 }

@@ -11,6 +11,8 @@ case class RAMCache(retention: FiniteDuration) extends CacheType
 
 case class MongoCache(retention: FiniteDuration, uri: String, collName: String) extends CacheType
 
+case object NoCache extends CacheType
+
 sealed trait UpdatesSource
 
 object WebHook extends UpdatesSource

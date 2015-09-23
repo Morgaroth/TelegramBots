@@ -11,7 +11,7 @@ import io.github.morgaroth.telegram.bot.core.api.models.Update
  */
 case class NewUpdate(id: UUID, botId: String, update: Update)
 
-case class WebHookSettings(domain: String, bindPort: Int, certificate: Option[java.io.File])
+case class WebHookSettings(domain: String, port: Int, certificate: Option[java.io.File])
 
 case class CacheUpdate(u: NewUpdate)
 

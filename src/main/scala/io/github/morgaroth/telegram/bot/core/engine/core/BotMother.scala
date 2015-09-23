@@ -34,6 +34,7 @@ class BotMother(webhookMaybe: Option[WebHookSettings]) extends Actor with ActorL
       val cacheRef: ActorRef = sett.cacheType match {
         case RAMCache(ret) => actorOf(CacheActor.RAMProps(ret), s"${sett.botName}-ram-cache")
         case MongoCache(ret, uri, colName) => actorOf(CacheActor.DBProps(uri, colName, ret), s"${sett.botName}-db-cache")
+        case NoCache => actorOf(CacheActor.NoProps)
       }
       val updatesProvider: ActorRef = sett.updatesType match {
         case WebHook =>
