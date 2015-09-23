@@ -11,8 +11,7 @@ import scala.language.postfixOps
  */
 object TestApp {
   def main(args: Array[String]) {
-    val as = ActorSystem("test-bot")
-    import as.dispatcher
-    as.actorOf(LongPoolingActor.props(args(0)))
+    //    val as = ActorSystem("test-bot")
+
   }
 }

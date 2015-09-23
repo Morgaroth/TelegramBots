@@ -21,7 +21,7 @@ object LongPoolingActor {
   def props(botName: String, botToken: String) =
     Props(classOf[LongPoolingActor], botName, botToken)
 
-  implicit def wrapToMaxoption[A](tr: TraversableOnce[A]): Object {def maxOpt: Option[A]} = new {
+  implicit def wrapToMaxoption[A: Ordering](tr: TraversableOnce[A]): Object {def maxOpt: Option[A]} = new {
     def maxOpt = if (tr.isEmpty) None else Some(tr.max)
   }
 }

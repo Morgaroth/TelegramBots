@@ -36,6 +36,8 @@ object BotActor {
 class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, updatesActor: ActorRef, worker: ActorRef)
   extends Actor with ActorLogging with Methods {
 
+  import context.dispatcher
+
   var me: User = null
   getMe().onSuccess { case r =>
     me = r.result.right.get
@@ -95,7 +97,6 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
     case c: SendDocument => sendDocument(c).logoutResult
     case c: SendLocation => sendLocation(c).logoutResult
     case c: SendMessage => sendMessage(c).logoutResult
-    case c: SendPhoto => sendPhoto(c).logoutResult
     case c: SendSticker => sendSticker(c).logoutResult
     case c: SendVideo => sendVideo(c).logoutResult
     case c: SendVoice => sendVoice(c).logoutResult

@@ -20,10 +20,10 @@ object WebHook extends UpdatesSource
 object LongPool extends UpdatesSource
 
 
-case class BotSettings[CT <: CacheType, US <: UpdatesSource](
-                                                              botProps: Props,
-                                                              botName: String,
-                                                              botToken: String,
-                                                              cacheType: CT,
-                                                              updatesType: US
-                                                              )
+case class BotSettings(
+                        botProps: Props,
+                        botName: String,
+                        botToken: String,
+                        cacheType: CacheType,
+                        updatesType: UpdatesSource
+                        )

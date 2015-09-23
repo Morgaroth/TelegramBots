@@ -24,15 +24,15 @@ object CacheActor {
 
   def RAMProps(retention: FiniteDuration) = Props(classOf[RAMCacheActor], retention)
 
-  def DBProps(dbCfg: Config) = Props(classOf[DBCacheActor], dbCfg)
+  def DBProps(dbCfg: Config): Props = Props(classOf[DBCacheActor], dbCfg)
 
-  def DBProps(mongoUri: String, collectionName: String) = DBProps(mongoUri, Some(collectionName), None)
+  def DBProps(mongoUri: String, collectionName: String): Props = DBProps(mongoUri, Some(collectionName), None)
 
-  def DBProps(mongoUri: String, retention: FiniteDuration) = DBProps(mongoUri, None, Some(retention))
+  def DBProps(mongoUri: String, retention: FiniteDuration): Props = DBProps(mongoUri, None, Some(retention))
 
-  def DBProps(mongoUri: String, collectionName: String, retention: FiniteDuration) = DBProps(mongoUri, Some(collectionName), Some(retention))
+  def DBProps(mongoUri: String, collectionName: String, retention: FiniteDuration): Props = DBProps(mongoUri, Some(collectionName), Some(retention))
 
-  def DBProps(mongoUri: String, collectionName: Option[String], retention: Option[FiniteDuration]) = {
+  def DBProps(mongoUri: String, collectionName: Option[String], retention: Option[FiniteDuration]): Props = {
     val collectionNameEntry = collectionName.map(x => s", name=$x, ").getOrElse("")
     val ret = retention.map(x => s", retention=${x.toSeconds} s, ").getOrElse("")
     Props(classOf[DBCacheActor], ConfigFactory.parseString( s"""uri=$mongoUri $collectionNameEntry  $ret"""))
@@ -42,7 +42,7 @@ object CacheActor {
 trait CacheActor extends Actor with ActorLogging {
   def updatesRetention: FiniteDuration
 
-  import context.dispatcher
+  implicit val dispatcher = context.dispatcher
 
   def barrier = DateTime.now().minus(updatesRetention.toMillis)
 
@@ -74,7 +74,7 @@ trait CacheActor extends Actor with ActorLogging {
       cleanOld()
   }
 
-  def cleanOld(): Unit
+  def cleanOld(): Future[Unit]
 
   def persistUpdate(update: NewUpdate): Future[Unit]
 
@@ -92,7 +92,7 @@ class RAMCacheActor(val updatesRetention: FiniteDuration) extends CacheActor {
     Future.successful()
   }
 
-  override def markHandled(id: UUID): Unit = {
+  override def markHandled(id: UUID): Future[Unit] = {
     updates - id
     Future.successful()
   }
@@ -101,8 +101,8 @@ class RAMCacheActor(val updatesRetention: FiniteDuration) extends CacheActor {
     Future.successful(updates.values.filter(_.update.botId == botId).map(_.update).toList)
   }
 
-  override def cleanOld(): Unit = {
-    updates.filter(_._2.inserted.isBefore(barrier))
+  override def cleanOld(): Future[Unit] = {
+    Future.successful(updates.filter(_._2.inserted.isBefore(barrier)))
   }
 }
 
@@ -114,20 +114,11 @@ class DBCacheActor(dbConfig: Config) extends CacheActor {
     override def cfg: Config = dbConfig
   }
 
-  override def persistUpdate(update: NewUpdate): Future[Unit] = {
-    Future(dao.save(update))
-  }
+  override def persistUpdate(update: NewUpdate): Future[Unit] = Future(dao.save(update))
 
-  override def getRemaining(botId: String): Future[List[NewUpdate]] = {
-    Future(dao.getRemaining(botId))
-  }
+  override def getRemaining(botId: String): Future[List[NewUpdate]] = Future(dao.getRemaining(botId))
 
-  override def markHandled(id: UUID): Future[Unit] = {
-    Future(dao.remove(id))
-  }
+  override def markHandled(id: UUID): Future[Unit] = Future(dao.remove(id))
 
-  override def cleanOld(): Unit = Future {
-    dao.dropOld(barrier)
-  }
-
+  override def cleanOld(): Future[Unit] = Future(dao.dropOld(barrier))
 }

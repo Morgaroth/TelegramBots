@@ -10,13 +10,18 @@ import scala.concurrent.duration.FiniteDuration
 /**
  * Created by mateusz on 19.09.15.
  */
-@json case class GetUpdatesReq(
-                                offset: Option[Int] = None,
-                                limit: Option[Int] = None,
-                                timeout: Option[Int] = None
-                                )
+case class GetUpdatesReq(
+                          offset: Option[Int] = None,
+                          limit: Option[Int] = None,
+                          timeout: Option[Int] = None
+                          )
 
 object GetUpdatesReq {
+
+  import spray.json.DefaultJsonProtocol._
+
+  implicit val serializer = jsonFormat3(GetUpdatesReq.apply(_: Option[Int], _: Option[Int], _: Option[Int]))
+
   def apply(offset: Option[Int], limit: Int): GetUpdatesReq =
     apply(offset, Some(limit))
 
