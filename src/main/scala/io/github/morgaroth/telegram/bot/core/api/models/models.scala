@@ -6,6 +6,7 @@ import spray.json._
 import spray.json.DefaultJsonProtocol._
 import us.bleibinha.spray.json.macros.jsonstrict
 import us.bleibinha.spray.json.macros.lazyy.json
+
 sealed trait Command
 
 
@@ -91,31 +92,73 @@ object formats {
 /**
  * https://core.telegram.org/bots/api#message
  */
-@json case class Message(
-                          message_id: Int,
-                          from: User,
-                          date: Long,
-                          chat: Either[User, GroupChat],
-                          forward_from: Option[User],
-                          forward_date: Option[Long],
-                          text: Option[String],
-                          audio: Option[Audio],
-                          document: Option[Document],
-                          photo: Option[List[PhotoSize]],
-                          sticker: Option[Sticker],
-                          video: Option[Video],
-                          contact: Option[Contact],
-                          location: Option[Location],
-                          new_chat_participant: Option[User],
-                          left_chat_participant: Option[User],
-                          new_chat_title: Option[String],
-                          new_chat_photo: Option[List[PhotoSize]],
-                          delete_chat_photo: Option[Boolean],
-                          group_chat_created: Option[Boolean],
-                          reply_to_message: Option[Message]
-                          ) {
+case class Message(
+                    message_id: Int,
+                    from: User,
+                    date: Long,
+                    chat: Either[User, GroupChat],
+                    forward_from: Option[User],
+                    forward_date: Option[Long],
+                    text: Option[String],
+                    audio: Option[Audio],
+                    document: Option[Document],
+                    photo: Option[List[PhotoSize]],
+                    sticker: Option[Sticker],
+                    video: Option[Video],
+                    contact: Option[Contact],
+                    location: Option[Location],
+                    new_chat_participant: Option[User],
+                    left_chat_participant: Option[User],
+                    new_chat_title: Option[String],
+                    new_chat_photo: Option[List[PhotoSize]],
+                    delete_chat_photo: Option[Boolean],
+                    group_chat_created: Option[Boolean],
+                    reply_to_message: Option[Message]
+                    ) {
   def chatId = chat.fold(_.id, _.id)
+
+  override def toString: String = {
+    var separator: Option[String] = None
+    def sep = {
+      val res = separator.getOrElse("")
+      separator = separator orElse Some(", ")
+      res
+    }
+    val sb = StringBuilder.newBuilder
+    sb.append("Message(")
+    sb.append(s"${sep}message_id=$message_id")
+    sb.append(s"${sep}from=$from")
+    sb.append(s"${sep}date=$date")
+    sb.append(s"${sep}chat=$chat")
+    sb.append(forward_from.map(x => s"${sep}forward_from=${x.toString}").getOrElse(""))
+    sb.append(forward_date.map(x => s"${sep}forward_date=${x.toString}").getOrElse(""))
+    sb.append(text.map(x => s"${sep}text=${x.toString}").getOrElse(""))
+    sb.append(audio.map(x => s"${sep}audio=${x.toString}").getOrElse(""))
+    sb.append(document.map(x => s"${sep}document=${x.toString}").getOrElse(""))
+    sb.append(photo.map(x => s"${sep}photo=${x.mkString}").getOrElse(""))
+    sb.append(sticker.map(x => s"${sep}sticker=${x.toString}").getOrElse(""))
+    sb.append(video.map(x => s"${sep}video=${x.toString}").getOrElse(""))
+    sb.append(contact.map(x => s"${sep}contact=${x.toString}").getOrElse(""))
+    sb.append(location.map(x => s"${sep}location=${x.toString}").getOrElse(""))
+    sb.append(new_chat_participant.map(x => s"${sep}new_chat_participant=${x.toString}").getOrElse(""))
+    sb.append(left_chat_participant.map(x => s"${sep}left_chat_participant=${x.toString}").getOrElse(""))
+    sb.append(new_chat_title.map(x => s"${sep}new_chat_title=${x.toString}").getOrElse(""))
+    sb.append(new_chat_photo.map(x => s"${sep}new_chat_photo=${x.mkString}").getOrElse(""))
+    sb.append(delete_chat_photo.map(x => s"${sep}delete_chat_photo=${x.toString}").getOrElse(""))
+    sb.append(group_chat_created.map(x => s"${sep}group_chat_created=${x.toString}").getOrElse(""))
+    sb.append(reply_to_message.map(x => s"${sep}reply_to_message=${x.toString}").getOrElse(""))
+    sb.append(")")
+    sb.mkString
+  }
 }
+
+object Message {
+  implicit def formatter: JsonFormat[Message] = lazyFormat(jsonFormat(Message.apply, "message_id", "from", "date", "chat",
+    "forward_from", "forward_date", "text", "audio", "document", "photo", "sticker", "video", "contact", "location",
+    "new_chat_participant", "left_chat_participant", "new_chat_title", "new_chat_photo", "delete_chat_photo",
+    "group_chat_created", "reply_to_message"))
+}
+
 
 /**
  * https://core.telegram.org/bots/api#photosize
@@ -218,10 +261,10 @@ object formats {
 @json case class SendMessage(
                               chat_id: Int,
                               text: String,
-                              parse_mode: Option[String],
-                              disable_web_page_preview: Option[Boolean],
-                              reply_to_message_id: Option[Int],
-                              reply_markup: Option[Keyboard]
+                              parse_mode: Option[String] = None,
+                              disable_web_page_preview: Option[Boolean] = None,
+                              reply_to_message_id: Option[Int] = None,
+                              reply_markup: Option[Keyboard] = None
                               ) extends Command
 
 /**
@@ -239,9 +282,9 @@ object formats {
 case class SendPhoto(
                       chat_id: Int,
                       photo: Either[java.io.File, String],
-                      caption: Option[String],
-                      reply_to_message_id: Option[Int],
-                      reply_markup: Option[Keyboard]
+                      caption: Option[String] = None,
+                      reply_to_message_id: Option[Int] = None,
+                      reply_markup: Option[Keyboard] = None
                       ) extends Command {
   def toForm: MultiMaybeForm =
     photo.left.map(data =>
@@ -266,11 +309,11 @@ case class SendPhoto(
 case class SendAudio(
                       chat_id: Int,
                       audio: Either[java.io.File, String],
-                      duration: Option[Int],
-                      performer: Option[String],
-                      title: Option[String],
-                      reply_to_message_id: Option[Int],
-                      reply_markup: Option[Keyboard]
+                      duration: Option[Int] = None,
+                      performer: Option[String] = None,
+                      title: Option[String] = None,
+                      reply_to_message_id: Option[Int] = None,
+                      reply_markup: Option[Keyboard] = None
                       ) extends Command {
   def toForm: MultiMaybeForm =
     audio.left.map(data =>
@@ -299,8 +342,8 @@ case class SendAudio(
 case class SendDocument(
                          chat_id: Int,
                          document: Either[java.io.File, String],
-                         reply_to_message_id: Option[Int],
-                         reply_markup: Option[Keyboard]
+                         reply_to_message_id: Option[Int] = None,
+                         reply_markup: Option[Keyboard] = None
                          ) extends Command {
   def toForm: MultiMaybeForm =
     document.left.map(data =>

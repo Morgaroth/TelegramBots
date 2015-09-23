@@ -24,7 +24,11 @@ object BotActor {
 
   case class Handled(id: UUID)
 
-  case class HandledUpdate(u: NewUpdate, response: Command)
+  case class HandledUpdate(uid: UUID, response: Command)
+
+  object HandledUpdate {
+    def apply(u: NewUpdate, response: Command): HandledUpdate = apply(u.id, response)
+  }
 
   case class InitializationFailed(reason: Either[Response[Boolean], Throwable]) extends State
 
@@ -92,14 +96,14 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
       log.debug(s"update ${h.id} marked as handled")
       cacheActor ! h
 
-    case HandledUpdate(update, response) if handleCommands(sender()).isDefinedAt(response) =>
+    case HandledUpdate(uId, response) if handleCommands(sender()).isDefinedAt(response) =>
       log.info(s"handling return from worker $response")
-      self ! Handled(update.id)
+      self ! Handled(uId)
       handleCommands(sender())(response)
 
-    case someCommand:Command if handleCommands(sender()).isDefinedAt(someCommand) =>
+    case someCommand: Command if handleCommands(sender()).isDefinedAt(someCommand) =>
       log.info(s"handling command $someCommand")
-      handleCommands(sender())
+      handleCommands(sender())(someCommand)
 
     case OK(id) =>
 
@@ -117,10 +121,7 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
     case c: SendSticker => sendSticker(c).logoutResult
     case c: SendVideo => sendVideo(c).logoutResult
     case c: SendVoice => sendVoice(c).logoutResult
-    case c: ForwardMessage =>
-      log.info(s"forwarding message $c")
-      val apply: Future[Response[Message]] = forwardMessage.apply(c)
-      Await.result(apply, 20 seconds)
+    case c: ForwardMessage => forwardMessage(c).logoutResult
     case c: GetFile => getFile(c).logoutResult
     case c: GetUserProfilePhotos => getUserProfilePhotos(c).logoutResult
   }
