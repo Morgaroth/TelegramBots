@@ -36,6 +36,7 @@ trait Methods extends SprayJsonSupport with DefaultJsonProtocol {
   lazy val sendVideo = m1m[MultiMaybeForm]("sendVideo").compose[SendVideo](_.toForm)
   lazy val sendVoice = m1m[MultiMaybeForm]("sendVoice").compose[SendVoice](_.toForm)
 
+  lazy val sendLocation = m1m[SendLocation]("sendLocation")
   lazy val sendMessage = m1m[SendMessage]("sendMessage")
   lazy val forwardMessage = m1m[ForwardMessage]("forwardMessage")
   lazy val sendChatAction = m1[SendChatAction, Boolean]("sendChatAction")

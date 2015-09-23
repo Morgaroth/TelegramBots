@@ -7,6 +7,9 @@ import us.bleibinha.spray.json.macros.lazyy.json
 import spray.json._
 import DefaultJsonProtocol._
 
+sealed trait Command
+
+
 object formats {
   type MultiMaybeForm = Either[MultipartFormData, FormData]
   type Keyboard = Either[Either[ReplyKeyboardMarkup, ReplyKeyboardHide], ForceReply]
@@ -218,7 +221,7 @@ object formats {
                               disable_web_page_preview: Option[Boolean],
                               reply_to_message_id: Option[Int],
                               reply_markup: Option[Keyboard]
-                              )
+                              ) extends Command
 
 /**
  * https://core.telegram.org/bots/api#forwardmessage
@@ -227,7 +230,7 @@ object formats {
                                  chat_id: Int,
                                  from_chat_id: Int,
                                  message_id: Int
-                                 )
+                                 ) extends Command
 
 /**
  * https://core.telegram.org/bots/api#sendphoto
@@ -238,7 +241,7 @@ case class SendPhoto(
                       caption: Option[String],
                       reply_to_message_id: Option[Int],
                       reply_markup: Option[Keyboard]
-                      ) {
+                      ) extends Command {
   def toForm: MultiMaybeForm =
     photo.left.map(data =>
       MultipartFormData(
@@ -267,7 +270,7 @@ case class SendAudio(
                       title: Option[String],
                       reply_to_message_id: Option[Int],
                       reply_markup: Option[Keyboard]
-                      ) {
+                      ) extends Command {
   def toForm: MultiMaybeForm =
     audio.left.map(data =>
       MultipartFormData(
@@ -297,7 +300,7 @@ case class SendDocument(
                          document: Either[java.io.File, String],
                          reply_to_message_id: Option[Int],
                          reply_markup: Option[Keyboard]
-                         ) {
+                         ) extends Command {
   def toForm: MultiMaybeForm =
     document.left.map(data =>
       MultipartFormData(
@@ -320,7 +323,7 @@ case class SendSticker(
                         sticker: Either[java.io.File, String],
                         reply_to_message_id: Option[Int],
                         reply_markup: Option[Keyboard]
-                        ) {
+                        ) extends Command {
   def toForm: MultiMaybeForm =
     sticker.left.map(data =>
       MultipartFormData(
@@ -346,7 +349,7 @@ case class SendVideo(
                       caption: Option[String],
                       reply_to_message_id: Option[Int],
                       reply_markup: Option[Keyboard]
-                      ) {
+                      ) extends Command {
   def toForm: MultiMaybeForm =
     video.left.map(data =>
       MultipartFormData(
@@ -375,7 +378,7 @@ case class SendVoice(
                       duration: Option[Int],
                       reply_to_message_id: Option[Int],
                       reply_markup: Option[Keyboard]
-                      ) {
+                      ) extends Command {
   def toForm: MultiMaybeForm = {
     voice.left.map(voice =>
       MultipartFormData(
@@ -404,7 +407,7 @@ case class SendVoice(
                                longitude: Double,
                                reply_to_message_id: Option[Int],
                                reply_markup: Option[Keyboard]
-                               )
+                               ) extends Command
 
 /**
  * https://core.telegram.org/bots/api#sendchataction
@@ -412,7 +415,7 @@ case class SendVoice(
 @json case class SendChatAction(
                                  chat_id: Int,
                                  action: Action
-                                 )
+                                 ) extends Command
 
 @jsonstrict case class Action(name: String)
 
@@ -434,11 +437,11 @@ object Action {
                                        user_id: Int,
                                        offset: Option[Int],
                                        limit: Option[Int]
-                                       )
+                                       ) extends Command
 
 /**
  * https://core.telegram.org/bots/api#getfile
  */
 @json case class GetFile(
                           file_id: String
-                          )
+                          ) extends Command

@@ -1,7 +1,7 @@
 package io.github.morgaroth.telegram.bot.core.engine.core
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import io.github.morgaroth.telegram.bot.core.engine.WebHookSettings
+import io.github.morgaroth.telegram.bot.core.engine.{Register, WebHookSettings}
 import io.github.morgaroth.telegram.bot.core.engine.caching.CacheActor
 import io.github.morgaroth.telegram.bot.core.engine.core.BotMother.{BotRegistered, RegisterBot}
 import io.github.morgaroth.telegram.bot.core.engine.pooling.LongPoolingActor
@@ -30,17 +30,17 @@ class BotMother(webhookMaybe: Option[WebHookSettings]) extends Actor with ActorL
 
   def receive: Receive = {
     case RegisterBot(sett) =>
-      val cacheRef = sett.cacheType match {
-        case RAMCache(ret) => actorOf(CacheActor.RAMProps(ret))
-        case MongoCache(ret, uri, colName) => actorOf(CacheActor.DBProps(uri, colName, ret))
+      val cacheRef: ActorRef = sett.cacheType match {
+        case RAMCache(ret) => actorOf(CacheActor.RAMProps(ret), s"${sett.botName}-ram-cache")
+        case MongoCache(ret, uri, colName) => actorOf(CacheActor.DBProps(uri, colName, ret), s"${sett.botName}-db-cache")
       }
-      val updatesProvider = sett.updatesType match {
+      val updatesProvider: ActorRef = sett.updatesType match {
         case WebHook =>
           webHookManager.get
         case LongPool =>
-//          actorOf(LongPoolingActor.props)
+          actorOf(LongPoolingActor.props(sett.botName, sett.botToken), s"${sett.botName}-long-poll")
       }
-
-//      sender() ! BotRegistered(deadLetters)
+      val botActor = actorOf(BotActor.props(sett.botName, sett.botToken, cacheRef, updatesProvider, sender()), s"${sett.botName}-bot")
+//      sender() ! BotRegistered(botActor)
   }
 }
