@@ -6,7 +6,7 @@ import akka.actor._
 import io.github.morgaroth.telegram.bot.core.api.methods.{Methods, Response}
 import io.github.morgaroth.telegram.bot.core.api.models._
 import io.github.morgaroth.telegram.bot.core.engine._
-import io.github.morgaroth.telegram.bot.core.engine.core.BotActor.{Handled, HandledUpdate, InitializationFailed, Initialized}
+import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
@@ -25,6 +25,8 @@ object BotActor {
   case class Handled(id: UUID)
 
   case class HandledUpdate(uid: UUID, response: Command)
+
+  case class SendMapped(response: Command, fun: PartialFunction[Any, Unit])
 
   object HandledUpdate {
     def apply(u: NewUpdate, response: Command): HandledUpdate = apply(u.id, response)
@@ -105,25 +107,28 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
       log.info(s"handling command $someCommand")
       handleCommands(sender())(someCommand)
 
+    case SendMapped(comm, onSucc) =>
+      handleCommands(sender(), onSucc)(comm)
+
     case OK(id) =>
 
     case unhandled =>
       log.warning(s"unhandled message $unhandled")
   }
 
-  def handleCommands(requester: ActorRef): PartialFunction[Command, Unit] = {
-    case c: SendPhoto => sendPhoto(c).logoutResult
-    case c: SendAudio => sendAudio(c).logoutResult
-    case c: SendChatAction => sendChatAction(c).logoutResult
-    case c: SendDocument => sendDocument(c).logoutResult
-    case c: SendLocation => sendLocation(c).logoutResult
-    case c: SendMessage => sendMessage(c).logoutResult
-    case c: SendSticker => sendSticker(c).logoutResult
-    case c: SendVideo => sendVideo(c).logoutResult
-    case c: SendVoice => sendVoice(c).logoutResult
-    case c: ForwardMessage => forwardMessage(c).logoutResult
-    case c: GetFile => getFile(c).logoutResult
-    case c: GetUserProfilePhotos => getUserProfilePhotos(c).logoutResult
+  def handleCommands(requester: ActorRef, callback: PartialFunction[Any, Unit] = {case _ =>}): PartialFunction[Command, Unit] = {
+    case c: SendPhoto => sendPhoto(c).map { x => callback(x); x }.logoutResult
+    case c: SendAudio => sendAudio(c).map { x => callback(x); x }.logoutResult
+    case c: SendChatAction => sendChatAction(c).map { x => callback(x); x }.logoutResult
+    case c: SendDocument => sendDocument(c).map { x => callback(x); x }.logoutResult
+    case c: SendLocation => sendLocation(c).map { x => callback(x); x }.logoutResult
+    case c: SendMessage => sendMessage(c).map { x => callback(x); x }.logoutResult
+    case c: SendSticker => sendSticker(c).map { x => callback(x); x }.logoutResult
+    case c: SendVideo => sendVideo(c).map { x => callback(x); x }.logoutResult
+    case c: SendVoice => sendVoice(c).map { x => callback(x); x }.logoutResult
+    case c: ForwardMessage => forwardMessage(c).map { x => callback(x); x }.logoutResult
+    case c: GetFile => getFile(c).map { x => callback(x); x }.logoutResult
+    case c: GetUserProfilePhotos => getUserProfilePhotos(c).map { x => callback(x); x }.logoutResult
   }
 
   override implicit def actorSystem: ActorSystem = context.system

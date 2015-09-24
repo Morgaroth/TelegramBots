@@ -58,7 +58,7 @@ object formats {
  */
 @json case class Document(
                            file_id: String,
-                           thumb: PhotoSize,
+                           thumb: Option[PhotoSize],
                            file_name: Option[String],
                            mime_type: Option[String],
                            file_size: Option[Int]
@@ -73,13 +73,6 @@ object formats {
                        file_path: Option[String]
                        )
 
-/**
- * https://core.telegram.org/bots/api#groupchat
- */
-@json case class GroupChat(
-                            id: Int,
-                            title: String
-                            )
 
 /**
  * https://core.telegram.org/bots/api#location
@@ -96,7 +89,7 @@ case class Message(
                     message_id: Int,
                     from: User,
                     date: Long,
-                    chat: Either[User, GroupChat],
+                    chat: Chat,
                     forward_from: Option[User],
                     forward_date: Option[Long],
                     text: Option[String],
@@ -215,6 +208,14 @@ object Message {
                        last_name: Option[String],
                        username: Option[String]
                        )
+
+/**
+ * https://core.telegram.org/bots/api#groupchat
+ */
+@json case class GroupChat(
+                            id: Int,
+                            title: String
+                            )
 
 /**
  * https://core.telegram.org/bots/api#userprofilephotos
