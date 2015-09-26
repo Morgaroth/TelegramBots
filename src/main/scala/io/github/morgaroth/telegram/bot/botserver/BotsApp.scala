@@ -11,6 +11,7 @@ import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 import net.ceedubs.ficus.readers.ValueReader
 
 import scala.language.postfixOps
+import scala.util.Try
 
 /**
  * Created by mateusz on 23.09.15.
@@ -88,7 +89,7 @@ trait BotsApp {
     val raw = ConfigFactory.load()
     if (raw.hasPath("telegram-api.webhooks")) {
       val cfg = raw.getConfig("telegram-api")
-      Some(cfg.as[WebHookSettings]("webhooks"))
+      Try(cfg.as[WebHookSettings]("webhooks")).toOption
     } else None
   }
 

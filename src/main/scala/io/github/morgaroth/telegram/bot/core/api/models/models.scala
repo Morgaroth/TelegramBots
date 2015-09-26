@@ -13,6 +13,13 @@ sealed trait Command
 object formats {
   type MultiMaybeForm = Either[MultipartFormData, FormData]
   type Keyboard = Either[Either[ReplyKeyboardMarkup, ReplyKeyboardHide], ForceReply]
+
+  implicit def convertToKeyboard(rkm: ReplyKeyboardMarkup): Option[Keyboard] = Some(Left(Left(rkm)))
+
+  implicit def convertToKeyboard(rkm: ReplyKeyboardHide): Option[Keyboard] = Some(Left(Right(rkm)))
+
+  implicit def convertToKeyboard(rkm: ForceReply): Option[Keyboard] = Some(Right(rkm))
+
   type DI = DummyImplicit
 
   def convBP(t: (String, java.io.File))(implicit di: DI): BodyPart = BodyPart(t._2, t._1)
@@ -168,17 +175,23 @@ object Message {
  */
 @json case class ReplyKeyboardMarkup(
                                       keyboard: List[List[String]],
-                                      resize_keyboard: Option[Boolean],
-                                      one_time_keyboard: Option[Boolean],
-                                      selective: Option[Boolean]
+                                      resize_keyboard: Option[Boolean] = None,
+                                      one_time_keyboard: Option[Boolean] = None,
+                                      selective: Option[Boolean] = None
                                       )
+
+object ReplyKeyboardMarkup {
+  def once(keyboard: List[List[String]], resize_keyboard: Boolean = false, selective: Boolean = false) =
+    apply(keyboard, Option(resize_keyboard).filter(identity), Some(true), Option(selective).filter(identity))
+
+}
 
 /**
  * https://core.telegram.org/bots/api#replykeyboardhide
  */
 @json case class ReplyKeyboardHide(
                                     hide_keyboard: Boolean = true,
-                                    selective: Option[Boolean]
+                                    selective: Option[Boolean] = None
                                     )
 
 /**
