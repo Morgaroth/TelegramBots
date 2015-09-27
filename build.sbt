@@ -3,7 +3,7 @@ import io.github.morgaroth.sbt.commons.Repositories
 
 import scala.io.Source
 
-name := "MorgarothTestBot"
+name := "TelegramBots"
 
 version := "1.0"
 
@@ -18,7 +18,7 @@ val Server = config("server") extend Compile
 inConfig(Server)(
   baseAssemblySettings ++
     inTask(assembly)(mainClass := Some("io.github.morgaroth.telegram.bot.test.WebServer")) ++
-    inTask(assembly)(assemblyJarName := s"test-bots-server-" + version.value + ".jar")
+    inTask(assembly)(assemblyJarName := s"bots-server-" + version.value + ".jar")
 )
 
 val Standalone = config("standalone") extend Compile
@@ -26,7 +26,7 @@ val Standalone = config("standalone") extend Compile
 inConfig(Standalone)(
   baseAssemblySettings ++
     inTask(assembly)(mainClass := Some("io.github.morgaroth.telegram.bot.test.TestApp")) ++
-    inTask(assembly)(assemblyJarName := s"test-bots-standalone-" + version.value + ".jar")
+    inTask(assembly)(assemblyJarName := s"bots-standalone-" + version.value + ".jar")
 )
 
 libraryDependencies ++= Seq(

@@ -22,17 +22,17 @@ class ObiadoBot extends Actor with ActorLogging {
   def orderMeal(order: List[String], chat: Chat, user: User): Unit = ???
 
   override def receive: Receive = {
-    case SingleArgCommandUpdate("dzikakarta", arg, (chat, author, _)) =>
+    case SingleArgCommand("dzikakarta", arg, (chat, author, _)) =>
       grantDzikCardTo(arg, author)
-    case NoArgCommandUpdate("dzikkarty", (chat, _, _)) =>
+    case NoArgCommand("dzikkarty", (chat, _, _)) =>
       sendDzikCardsStatistics()
-    case NoArgCommandUpdate("help", (chat, _, _)) =>
+    case NoArgCommand("help", (chat, _, _)) =>
       sendHelp()
-    case NoArgCommandUpdate("menu", (chat, _, _)) =>
+    case NoArgCommand("menu", (chat, _, _)) =>
       sendMenu()
-    case MultiArgCommandUpdate("order", arg, chatInfo) =>
+    case MultiArgCommand("order", arg, chatInfo) =>
       orderMeal(arg, chatInfo._1, chatInfo._2)
-    case MultiArgCommandUpdate("zamawiam", arg, chatInfo) =>
+    case MultiArgCommand("zamawiam", arg, chatInfo) =>
       orderMeal(arg, chatInfo._1, chatInfo._2)
   }
 }

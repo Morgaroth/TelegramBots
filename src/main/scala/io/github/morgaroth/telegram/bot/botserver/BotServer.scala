@@ -6,7 +6,7 @@ import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 
 import akka.actor.Props
 import com.typesafe.config.ConfigFactory
-import io.github.morgaroth.telegram.bot.bots.{TestKeyboardBot, CyckoBot, ForwarderBot}
+import io.github.morgaroth.telegram.bot.bots.{PollBot, TestKeyboardBot, CyckoBot, ForwarderBot}
 
 
 object BotServer extends BotsApp {
@@ -46,7 +46,8 @@ object BotServer extends BotsApp {
     val bots: List[(String, (BotSecret => Props))] = List(
       "ForwadingBot" -> (s => ForwarderBot.props),
       "CyckoBot" -> (s => CyckoBot.props()),
-      "KeyboardTestBot" -> (s => TestKeyboardBot.props)
+      "KeyboardTestBot" -> (s => TestKeyboardBot.props),
+      "PollBot" -> (s => PollBot.props)
     )
     val configFile = new File(args(0))
     println(configFile.getAbsolutePath)

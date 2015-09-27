@@ -16,7 +16,7 @@ import com.novus.salat.global.ctx
 import io.github.morgaroth.telegram.bot.bots.CyckoBot.PublishBoobs
 import io.github.morgaroth.telegram.bot.core.api.methods.Response
 import io.github.morgaroth.telegram.bot.core.api.models._
-import io.github.morgaroth.telegram.bot.core.api.models.extractors.SingleArgCommand
+import io.github.morgaroth.telegram.bot.core.api.models.extractors.SingleArgCommandMessage
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.telegram.bot.core.engine.core.BotActor.{SendMapped, Handled, HandledUpdate}
 import org.joda.time.DateTime
@@ -97,7 +97,7 @@ class CyckoBot extends Actor with ActorLogging {
 
 
   override def receive: Receive = {
-    case NewUpdate(id, _, Update(uId, SingleArgCommand("resolve", arg, (chat, _, _)))) =>
+    case NewUpdate(id, _, Update(uId, SingleArgCommandMessage("resolve", arg, (chat, _, _)))) =>
       resolveLink(arg, chat.chatId, sender())
     case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined =>
       val g = m.text.get

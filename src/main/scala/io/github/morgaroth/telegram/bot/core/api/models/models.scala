@@ -198,9 +198,13 @@ object ReplyKeyboardMarkup {
  * https://core.telegram.org/bots/api#forcereply
  */
 @json case class ForceReply(
-                             force_reply: Boolean = true,
-                             selective: Option[Boolean]
+                             selective: Option[Boolean] = None,
+                             force_reply: Boolean = true
                              )
+
+object ForceReply {
+  def selective = apply(Some(true))
+}
 
 /**
  * https://core.telegram.org/bots/api#sticker
