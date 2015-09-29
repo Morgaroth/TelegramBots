@@ -53,13 +53,11 @@ trait BoobsListenerDao {
   lazy val dao = new SalatDAOWithCfg[BoobsListener](uri, collection.getOrElse("listeners")) {}
 }
 
-case class Files(@Key("_id") fileId: String, typ: String, random: Double = Random.nextDouble(), created: DateTime = DateTime.now())
+case class Files(@Key("_id") fileId: String, typ: String, hash:Array[Byte], random: Double = Random.nextDouble(), created: DateTime = DateTime.now())
 
 object Files {
   val document = "document"
   val photo = "photo"
-
-
 }
 
 trait FilesDao {
@@ -67,10 +65,10 @@ trait FilesDao {
 
   def collection: Option[String] = None
 
-  lazy val dao = new SalatDAOWithCfg[Files](uri, collection.getOrElse("files")) {}
+  lazy val dao = new SalatDAOWithCfg[Files](uri, collection.getOrElse("filess")) {}
 
   def random(x: Int) = {
-    dao.find(MongoDBObject("random" -> MongoDBObject("$gt" -> Random.nextDouble()))).sort(MongoDBObject("random" -> -1)).take(x)
+    dao.find(MongoDBObject("random" -> MongoDBObject("$gt" -> Random.nextDouble()))).sort(MongoDBObject("random" -> 1)).take(x)
   }
 }
 
