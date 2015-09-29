@@ -1,7 +1,6 @@
 package io.github.morgaroth.telegram.bot.bots
 
 import java.io.{File => JFile, FileOutputStream}
-import java.nio.file.Paths
 import java.security.MessageDigest
 import javax.xml.bind.DatatypeConverter
 
@@ -23,6 +22,8 @@ import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
 import org.joda.time.DateTime
 import spray.client.pipelining._
+import spray.http.HttpHeaders.`Content-Type`
+import spray.http.MediaTypes
 
 import scala.language.reflectiveCalls
 import scala.util.{Failure, Random, Success, Try}
@@ -70,7 +71,7 @@ trait FilesDao {
   lazy val dao = new SalatDAOWithCfg[Files](uri, collection.getOrElse("files")) {}
 
   def random(x: Int): List[Files] = {
-    List.fill(x){
+    List.fill(x) {
       dao.find(MongoDBObject("random" -> MongoDBObject("$gt" -> Random.nextDouble()))).sort(MongoDBObject("random" -> 1)).take(1).toList.headOption
     }.flatten
   }
@@ -292,7 +293,12 @@ class CyckoBot extends Actor with ActorLogging {
         stream.write(data)
         stream.flush()
         stream.close()
-        val contentType = java.nio.file.Files.probeContentType(Paths.get(f.getAbsolutePath))
+        val contentType = res.headers.find(_.name == `Content-Type`.name) match {
+          case Some(`Content-Type`(types)) if types.mediaType == MediaTypes.`image/gif` =>
+            "image/gif"
+          case Some(`Content-Type`(types)) => types.mediaType.value
+          case None => "unrecognized"
+        }
         if (contentType == "image/gif") {
           val hash = calculateMD5(f)
           FilesDao.byHash(hash) match {
