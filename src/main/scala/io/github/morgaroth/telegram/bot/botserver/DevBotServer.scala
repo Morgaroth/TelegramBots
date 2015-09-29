@@ -45,7 +45,6 @@ object DevBotServer extends BotsApp {
   def main(args: Array[String]) {
     val bots: List[(String, (BotSecret => Props))] = List(
       "ForwadingBot" -> (s => ForwarderBot.props),
-      "CyckoBot" -> (s => CyckoBot.props()),
       "KeyboardTestBot" -> (s => TestKeyboardBot.props)
 //      , "PollBot" -> (s => PollBot.props)
     )
