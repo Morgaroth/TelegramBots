@@ -8,21 +8,21 @@ resolvers ++= Seq(
   Resolver.sonatypeRepo("releases"),
   Pathikrit.repository
 )
-
-val Server = config("server") extend Compile
-
-inConfig(Server)(
-  baseAssemblySettings ++
-    inTask(assembly)(mainClass := Some("io.github.morgaroth.telegram.bot.test.WebServer")) ++
-    inTask(assembly)(assemblyJarName := s"bots-server-" + version.value + ".jar")
-)
+//
+//val Server = config("server") extend Compile
+//
+//inConfig(Server)(
+//  baseAssemblySettings ++
+//    inTask(assembly)(mainClass := Some("io.github.morgaroth.telegram.bot.test.WebServer")) ++
+//    inTask(assembly)(assemblyJarName := s"bots-server-" + version.value + ".jar")
+//)
 
 val Standalone = config("standalone") extend Compile
 
 inConfig(Standalone)(
   baseAssemblySettings ++
-    inTask(assembly)(mainClass := Some("io.github.morgaroth.telegram.bot.test.TestApp")) ++
-    inTask(assembly)(assemblyJarName := s"bots-standalone-" + version.value + ".jar")
+    inTask(assembly)(mainClass := Some("io.github.morgaroth.telegram.bot.botserver.BotServer")) ++
+    inTask(assembly)(assemblyJarName := s"bots-" + version.value + ".jar")
 )
 
 libraryDependencies ++= Seq(

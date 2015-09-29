@@ -69,8 +69,10 @@ trait FilesDao {
 
   lazy val dao = new SalatDAOWithCfg[Files](uri, collection.getOrElse("files")) {}
 
-  def random(x: Int) = {
-    dao.find(MongoDBObject("random" -> MongoDBObject("$gt" -> Random.nextDouble()))).sort(MongoDBObject("random" -> 1)).take(x)
+  def random(x: Int): List[Files] = {
+    List.fill(x){
+      dao.find(MongoDBObject("random" -> MongoDBObject("$gt" -> Random.nextDouble()))).sort(MongoDBObject("random" -> 1)).take(1).toList.headOption
+    }.flatten
   }
 
   def byHash(hash: String): Option[Files] = dao.findOne(MongoDBObject("hash" -> hash))
@@ -119,7 +121,8 @@ class CyckoBot extends Actor with ActorLogging {
         case start if start.startsWith("start") =>
           sendHelp(m.chatId)
         case getImages if getImages.startsWith("get") =>
-          val numberStr = g.stripPrefix("get").dropWhile(_ == " ").takeWhile(_ != " ")
+          val numberStr = getImages.stripPrefix("get").dropWhile(_ == " ").takeWhile(_ != " ")
+          log.info(s"parsed number $numberStr")
           val count = Math.min(Try(numberStr.trim.toInt).toOption.getOrElse(1), 5)
           FilesDao.random(count).foreach(fId =>
             sender() ! SendBoobsCorrectType(m.chatId, fId)
