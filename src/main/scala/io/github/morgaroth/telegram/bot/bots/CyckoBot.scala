@@ -1,9 +1,11 @@
 package io.github.morgaroth.telegram.bot.bots
 
-import java.io.{FileOutputStream, File}
+import java.io.{File => JFile, FileOutputStream}
 import java.nio.file.Paths
+import java.security.MessageDigest
+import javax.xml.bind.DatatypeConverter
 
-import akka.actor.{ActorRef, Actor, ActorLogging, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import com.mongodb.MongoException.DuplicateKey
 import com.mongodb.casbah.Imports.mongoCollAsScala
 import com.mongodb.casbah.commons.MongoDBObject
@@ -16,14 +18,14 @@ import com.novus.salat.global.ctx
 import io.github.morgaroth.telegram.bot.bots.CyckoBot.PublishBoobs
 import io.github.morgaroth.telegram.bot.core.api.methods.Response
 import io.github.morgaroth.telegram.bot.core.api.models._
-import io.github.morgaroth.telegram.bot.core.api.models.extractors.SingleArgCommandMessage
+import io.github.morgaroth.telegram.bot.core.api.models.extractors.{NoArgCommand, SingleArgCommandMessage}
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
-import io.github.morgaroth.telegram.bot.core.engine.core.BotActor.{SendMapped, Handled, HandledUpdate}
+import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
 import org.joda.time.DateTime
 import spray.client.pipelining._
 
 import scala.language.reflectiveCalls
-import scala.util.{Failure, Success, Random, Try}
+import scala.util.{Failure, Random, Success, Try}
 
 /**
  * Created by mateusz on 23.09.15.
@@ -53,7 +55,7 @@ trait BoobsListenerDao {
   lazy val dao = new SalatDAOWithCfg[BoobsListener](uri, collection.getOrElse("listeners")) {}
 }
 
-case class Files(@Key("_id") fileId: String, typ: String, hash:Array[Byte], random: Double = Random.nextDouble(), created: DateTime = DateTime.now())
+case class Files(@Key("_id") fileId: String, typ: String, hash: String, random: Double = Random.nextDouble(), created: DateTime = DateTime.now())
 
 object Files {
   val document = "document"
@@ -65,11 +67,15 @@ trait FilesDao {
 
   def collection: Option[String] = None
 
-  lazy val dao = new SalatDAOWithCfg[Files](uri, collection.getOrElse("filess")) {}
+  lazy val dao = new SalatDAOWithCfg[Files](uri, collection.getOrElse("files")) {}
 
   def random(x: Int) = {
     dao.find(MongoDBObject("random" -> MongoDBObject("$gt" -> Random.nextDouble()))).sort(MongoDBObject("random" -> 1)).take(x)
   }
+
+  def byHash(hash: String): Option[Files] = dao.findOne(MongoDBObject("hash" -> hash))
+
+  def byId(id: String): Option[Files] = dao.findOneById(id)
 }
 
 object CyckoBot {
@@ -97,6 +103,16 @@ class CyckoBot extends Actor with ActorLogging {
   override def receive: Receive = {
     case NewUpdate(id, _, Update(uId, SingleArgCommandMessage("resolve", arg, (chat, _, _)))) =>
       resolveLink(arg, chat.chatId, sender())
+
+    case NoArgCommand("all", (ch, user, _)) =>
+      if (user.id == 36792931) {
+        FilesDao.dao.find(MongoDBObject.empty).foreach(f =>
+          sender() ! SendBoobsCorrectType(ch.chatId, f)
+        )
+      } else {
+        sender() ! SendMessage(ch.chatId, s"Sorry, I dont know command 'all'.")
+      }
+
     case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined =>
       val g = m.text.get
       g.stripPrefix("/") match {
@@ -159,38 +175,66 @@ class CyckoBot extends Actor with ActorLogging {
       // catched photo
       val photos = m.photo.get
       val biggest: PhotoSize = photos.sortBy(_.width).last
-      val response = Try {
-        val files = Files(biggest.file_id, Files.photo)
-        FilesDao.dao.insert(files)
-        self.forward(PublishBoobs(files, m.chatId))
-        "Thx!"
-      }.recover {
-        case e: DuplicateKey => "This image is already in DataBase"
-        case anot => s"Another error ${anot.getMessage}"
-      }.get
-      sender() ! HandledUpdate(id, SendMessage(m.chatId, response))
+      val hardSender = sender()
+      FilesDao.byId(biggest.file_id) match {
+        case Some(prev) =>
+          hardSender ! SendMessage(u.message.chatId, "This image is already in DataBase")
+        case None =>
+          hardSender ! SendMapped(GetFile(biggest.file_id), {
+            case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
+              hardSender ! FetchFile(f, Files.photo, u.message.chatId)
+              log.info(s"got file $fPath, downloading started")
+            case other =>
+              log.warning(s"got other response $other")
+          })
+      }
 
-    case NewUpdate(id, _, u@Update(_, m)) if m.document.isDefined =>
-      val doc = m.document.get
-      val response: String = if (doc.mime_type.isDefined) {
-        val mime = doc.mime_type.get
-        if (Set("image/jpeg", "image/png", "image/gif") contains mime) {
+    case FileFetchingResult(File(fId, _, _), author, t, Success(data)) =>
+      log.info(s"file $fId fetched")
+      val hash = calculateMD5(data)
+      val info = FilesDao.byHash(hash) match {
+        case Some(prev) => "This image is already in DataBase"
+        case None =>
           Try {
-            val files = Files(doc.file_id, Files.document)
+            val files = Files(fId, t, hash)
             FilesDao.dao.insert(files)
-            self.forward(PublishBoobs(files, m.chatId))
+            self.forward(PublishBoobs(files, author))
             "Thx!"
           }.recover {
             case e: DuplicateKey => "This image is already in DataBase"
             case anot => s"Another error ${anot.getMessage}"
           }.get
+      }
+      sender() ! SendMessage(author, info)
+
+    case s: FileFetchingResult =>
+      log.warning(s"error fetching file: $s")
+
+
+    case NewUpdate(id, _, u@Update(_, m)) if m.document.isDefined =>
+      val doc = m.document.get
+      if (doc.mime_type.isDefined) {
+        val mime = doc.mime_type.get
+        if (Set("image/jpeg", "image/png", "image/gif") contains mime) {
+          val hardSender = sender()
+          FilesDao.byId(doc.file_id) match {
+            case Some(prev) =>
+              hardSender ! SendMessage(u.message.chatId, "This image is already in DataBase")
+            case None =>
+              hardSender ! SendMapped(GetFile(doc.file_id), {
+                case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
+                  hardSender ! FetchFile(f, Files.document, u.message.chatId)
+                  log.info(s"got file $fPath, downloading started")
+                case other =>
+                  log.warning(s"got other response $other")
+              })
+          }
         } else {
-          s"Invalid ($mime) mime type."
+          sender() ! HandledUpdate(id, SendMessage(m.chatId, s"Invalid ($mime) mime type."))
         }
       } else {
-        "Mime type not defined, I suck"
+        sender() ! HandledUpdate(id, SendMessage(m.chatId, "Mime type not defined, I suck"))
       }
-      sender() ! HandledUpdate(id, SendMessage(m.chatId, response))
 
     case PublishBoobs(f, owner, None) =>
       self ! PublishBoobs(f, owner, Some(sender()))
@@ -240,25 +284,31 @@ class CyckoBot extends Actor with ActorLogging {
       case Success(res) =>
         log.info(s"get result with $res")
         val data = res.entity.data.toByteArray
-        val f: File = File.createTempFile("boobs", ".gif")
+        val f: JFile = JFile.createTempFile("boobs", ".gif")
         val stream = new FileOutputStream(f)
         stream.write(data)
         stream.flush()
         stream.close()
         val contentType = java.nio.file.Files.probeContentType(Paths.get(f.getAbsolutePath))
         if (contentType == "image/gif") {
-          bot ! SendMapped(SendDocument(chatId, Left(f)), {
-            case Response(true, Left(id), _) =>
-              log.info(s"received $id, I know what it is")
-              f.delete()
-            case Response(true, Right(m: Message), _) if m.document.isDefined =>
-              log.info(s"catched new boobs file ${m.document.get.file_id}")
-              doSthWithNewFile(chatId, bot, Files(m.document.get.file_id, "document"))
-              f.delete()
-            case another =>
-              log.warning(s"dont know what is this $another")
-              f.delete()
-          })
+          val hash = calculateMD5(f)
+          FilesDao.byHash(hash) match {
+            case Some(previous) =>
+              bot ! SendMessage(chatId, "This image is already in DataBase")
+            case None =>
+              bot ! SendMapped(SendDocument(chatId, Left(f)), {
+                case Response(true, Left(id), _) =>
+                  log.info(s"received $id, I know what it is")
+                  f.delete()
+                case Response(true, Right(m: Message), _) if m.document.isDefined =>
+                  log.info(s"catched new boobs file ${m.document.get.file_id}")
+                  doSthWithNewFile(chatId, bot, Files(m.document.get.file_id, "document", hash))
+                  f.delete()
+                case another =>
+                  log.warning(s"dont know what is this $another")
+                  f.delete()
+              })
+          }
         } else {
           bot ! SendMessage(chatId, s"Can't recognize file, only accept image/gif, current is $contentType")
           f.delete()
@@ -267,5 +317,17 @@ class CyckoBot extends Actor with ActorLogging {
       case Failure(t) =>
         t.printStackTrace()
     }
+  }
+
+  def calculateMD5(f: Array[Byte]): String = {
+    val md = MessageDigest.getInstance("MD5")
+    md.update(f)
+    DatatypeConverter.printHexBinary(md.digest())
+  }
+
+  def calculateMD5(f: JFile): String = {
+    import better.files.Cmds.md5
+    import better.files.{File => BFile}
+    md5(BFile(f.getAbsolutePath))
   }
 }

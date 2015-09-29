@@ -67,3 +67,11 @@ class Method0[R: JsonFormat](endpoint: String, val botToken: String)(implicit va
     pipe(Post(uri(endpoint)))
   }
 }
+
+class FileFetch(val botToken: String)(implicit val as: ActorSystem) extends ((String) => Future[Array[Byte]]) with MethodsCommons {
+  this: MethodsCommons =>
+  override def apply(filePath: String): Future[Array[Byte]] = {
+    val pipe = loggedSendReceive
+    pipe(Get(s"$service/file/bot$botToken/$filePath")).map(_.entity.data.toByteArray)
+  }
+}

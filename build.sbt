@@ -1,8 +1,3 @@
-import io.github.morgaroth.sbt.commons.Libraries.{Akka, Joda, Spray}
-import io.github.morgaroth.sbt.commons.Repositories
-
-import scala.io.Source
-
 name := "TelegramBots"
 
 version := "1.0"
@@ -10,7 +5,8 @@ version := "1.0"
 scalaVersion := "2.11.7"
 
 resolvers ++= Seq(
-  Resolver.sonatypeRepo("releases")
+  Resolver.sonatypeRepo("releases"),
+  Pathikrit.repository
 )
 
 val Server = config("server") extend Compile
@@ -38,7 +34,8 @@ libraryDependencies ++= Seq(
   Joda.Convert.`1.7`,
   Akka.Actor.`2.3.12`,
   Ficus.Config.`1.1.2`,
-  Morgaroth.UtilsMongo.`1.2.10`
+  Morgaroth.UtilsMongo.`1.2.10`,
+  Pathikrit.BetterFiles.`2.6.1`
 )
 
 addCompilerPlugin(Paradise.`2.1.0-M5`)

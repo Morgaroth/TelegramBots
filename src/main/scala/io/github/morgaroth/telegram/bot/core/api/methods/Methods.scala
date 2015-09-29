@@ -7,7 +7,7 @@ import spray.http.{FormData, MultipartFormData}
 import spray.httpx.SprayJsonSupport
 import spray.httpx.marshalling.Marshaller
 import spray.json.{DefaultJsonProtocol, JsonFormat}
-
+import spray.client.pipelining._
 
 /**
  * Created by mateusz on 19.09.15.
@@ -42,6 +42,9 @@ trait Methods extends SprayJsonSupport with DefaultJsonProtocol {
   lazy val sendChatAction = m1[SendChatAction, Boolean]("sendChatAction")
   lazy val getUserProfilePhotos = m1[GetUserProfilePhotos, UserProfilePhotos]("getUserProfilePhotos")
   lazy val getFile = m1[GetFile, File]("getFile")
+
+  lazy val fetchFile: FileFetch = new FileFetch(botToken)
+
 }
 
 object Methods {

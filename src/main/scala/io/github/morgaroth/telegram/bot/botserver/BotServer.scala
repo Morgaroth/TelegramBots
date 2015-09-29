@@ -46,8 +46,8 @@ object BotServer extends BotsApp {
     val bots: List[(String, (BotSecret => Props))] = List(
       "ForwadingBot" -> (s => ForwarderBot.props),
       "CyckoBot" -> (s => CyckoBot.props()),
-      "KeyboardTestBot" -> (s => TestKeyboardBot.props),
-      "PollBot" -> (s => PollBot.props)
+      "KeyboardTestBot" -> (s => TestKeyboardBot.props)
+//      , "PollBot" -> (s => PollBot.props)
     )
     val configFile = new File(args(0))
     println(configFile.getAbsolutePath)

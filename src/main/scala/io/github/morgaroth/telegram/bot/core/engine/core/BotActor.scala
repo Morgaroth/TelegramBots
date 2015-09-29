@@ -11,7 +11,7 @@ import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.language.{implicitConversions, reflectiveCalls}
-import scala.util.{Failure, Success}
+import scala.util.{Try, Failure, Success}
 
 /**
  * Created by mateusz on 23.09.15.
@@ -27,6 +27,10 @@ object BotActor {
   case class HandledUpdate(uid: UUID, response: Command)
 
   case class SendMapped(response: Command, fun: PartialFunction[Any, Unit])
+
+  case class FetchFile(f: File, `type`: String, author: Int)
+
+  case class FileFetchingResult(file: File, author: Int, `type`: String, result: Try[Array[Byte]])
 
   object HandledUpdate {
     def apply(u: NewUpdate, response: Command): HandledUpdate = apply(u.id, response)
@@ -112,11 +116,19 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
 
     case OK(id) =>
 
+    case FetchFile(fpath, t, author) =>
+      val hardSender = sender()
+      fetchFile(fpath.file_path.get).onComplete {
+        case res => hardSender ! FileFetchingResult(fpath, author, t, res)
+      }
+
     case unhandled =>
       log.warning(s"unhandled message $unhandled")
   }
 
-  def handleCommands(requester: ActorRef, callback: PartialFunction[Any, Unit] = {case _ =>}): PartialFunction[Command, Unit] = {
+  def handleCommands(requester: ActorRef, callback: PartialFunction[Any, Unit] = {
+    case _ =>
+  }): PartialFunction[Command, Unit] = {
     case c: SendPhoto => sendPhoto(c).map { x => callback(x); x }.logoutResult
     case c: SendAudio => sendAudio(c).map { x => callback(x); x }.logoutResult
     case c: SendChatAction => sendChatAction(c).map { x => callback(x); x }.logoutResult
