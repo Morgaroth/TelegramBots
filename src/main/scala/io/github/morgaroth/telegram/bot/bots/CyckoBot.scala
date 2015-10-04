@@ -17,7 +17,7 @@ import com.novus.salat.global.ctx
 import io.github.morgaroth.telegram.bot.bots.CyckoBot.PublishBoobs
 import io.github.morgaroth.telegram.bot.core.api.methods.Response
 import io.github.morgaroth.telegram.bot.core.api.models._
-import io.github.morgaroth.telegram.bot.core.api.models.extractors.{NoArgCommand, SingleArgCommandMessage}
+import io.github.morgaroth.telegram.bot.core.api.models.extractors.{SingleArgCommand, NoArgCommand, SingleArgCommandMessage}
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
 import org.joda.time.DateTime
@@ -104,8 +104,20 @@ class CyckoBot extends Actor with ActorLogging {
 
 
   override def receive: Receive = {
-    case NewUpdate(id, _, Update(uId, SingleArgCommandMessage("resolve", arg, (chat, _, _)))) =>
+    case SingleArgCommand("resolve", arg, (chat, _, _)) =>
       resolveLink(arg, chat.chatId, sender())
+
+    case SingleArgCommand("add", arg, (chat, _, _)) =>
+      resolveLink(arg, chat.chatId, sender(), publish = false)
+
+    case NoArgCommand("stats", (chat, _, _)) =>
+      sender() ! SendMessage(chat.chatId,
+        s"""Status are:
+          |* all files in database = ${FilesDao.dao.count()}
+          |* all subscribers in database = ${SubsDao.dao.count()}
+          |
+          |This is all for now.
+      """.stripMargin)
 
     case NoArgCommand("all", (ch, user, _)) =>
       if (user.id == 36792931) {
@@ -260,13 +272,16 @@ class CyckoBot extends Actor with ActorLogging {
         |You and Your camrades.
         |
         |Commands:
-        |/get N - sends You N boobs images from database, max 5
-        |/get - sends You 5 boobs images from database
-        |/random - sends You random boobs from database, enjoy it ( ͡° ͜ʖ͡°)
-        |/delete - only as reply comment to another image, deletes it from database
-        |/subscribe - subscribes this conversation for boobs news
-        |/unsubscribe - unubscribes this conversation from boobs news
-        |/help - prints this message
+        |resolve - downloads gif from http link to gif, publishes new file to all subscribers
+        |add - like resolve, but without publishing
+        |stats - prints some DB statistics
+        |get - returns random boobs
+        |get - with argument `get N` returns N random boobs from database, max is 5
+        |random - like get
+        |subscribe - subscribes this chat to boobs news
+        |unsubscribe - unsubscribes
+        |delete - as reply to image - deletes boobs from DB
+        |help - returns this help
       """.stripMargin
     sender() ! SendMessage(chatId, text, Some("Markdown"))
   }
@@ -275,14 +290,16 @@ class CyckoBot extends Actor with ActorLogging {
     if (fId.typ == Files.document) SendDocument(to, Right(fId.fileId)) else SendPhoto(to, Right(fId.fileId))
   }
 
-  def doSthWithNewFile(chatId: Int, worker: ActorRef, files: Files) = {
+  def doSthWithNewFile(chatId: Int, worker: ActorRef, files: Files, publish: Boolean = true) = {
     Try(FilesDao.dao.insert(files)).map(x => log.info(s"saved to db $files")).getOrElse {
       log.warning(s"not saved $files")
     }
-    hardSelf ! PublishBoobs(files, chatId, Some(worker))
+    if (publish) {
+      hardSelf ! PublishBoobs(files, chatId, Some(worker))
+    }
   }
 
-  def resolveLink(link: String, chatId: Int, bot: ActorRef): Unit = {
+  def resolveLink(link: String, chatId: Int, bot: ActorRef, publish: Boolean = true): Unit = {
     val pipe = sendReceive
     pipe(Get(link)).onComplete {
       case Success(res) =>
@@ -311,7 +328,7 @@ class CyckoBot extends Actor with ActorLogging {
                   f.delete()
                 case Response(true, Right(m: Message), _) if m.document.isDefined =>
                   log.info(s"catched new boobs file ${m.document.get.file_id}")
-                  doSthWithNewFile(chatId, bot, Files(m.document.get.file_id, "document", hash))
+                  doSthWithNewFile(chatId, bot, Files(m.document.get.file_id, "document", hash), publish)
                   f.delete()
                 case another =>
                   log.warning(s"dont know what is this $another")
