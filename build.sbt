@@ -124,8 +124,8 @@ val required =
     |-keep class * implements akka.actor.ActorRefProvider {
     |  public <init>(...);
     |}
-    |-keepclassmembernames class * implements akka.actor.Actor {
-    |  public <init>(...);
+    |-keepclasseswithmembers class * implements akka.actor.Actor {
+    |  <init>(...);
     |  akka.actor.ActorContext context;
     |  akka.actor.ActorRef self;
     |}

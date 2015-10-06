@@ -35,8 +35,8 @@ object SingleArgCommandMessage {
     m match {
       case OnlyTextMessage(chat, text, author, mId) if text.startsWith("/") && text.length > 1 =>
         val command = text.drop(1).trim
-        command.span(_ == " ") match {
-          case (comm, arg) if arg.nonEmpty => Some((comm, arg, (chat, author, mId)))
+        command.span(_ != ' ') match {
+          case (comm, arg) if arg.nonEmpty => Some((comm, arg.trim, (chat, author, mId)))
           case _ => None
         }
       case _ => None
