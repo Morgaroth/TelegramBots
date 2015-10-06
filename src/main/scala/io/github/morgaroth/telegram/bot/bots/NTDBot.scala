@@ -58,10 +58,10 @@ class NTDBot extends Actor with ActorLogging {
       worker = sender()
       worker ! SendMessage(ch.chatId, "NTD bot, wysyłaj mi prywatnie wiadomości, a ja wyślę je po NTD na Mirko (⌐ ͡■ ͜ʖ ͡■)")
 
-    case NoArgCommand("localTime", (ch, _, _)) =>
+    case NoArgCommand("localTime", (Left(ch), _, _)) =>
       log.info(s"message from chat $ch")
       worker = sender()
-      sender() ! SendMessage(ch.chatId, s"aktualnie jest $currentTimeInPoland (z datą: $currentInPoland).")
+      sender() ! SendMessage(ch.id, s"aktualnie jest $currentTimeInPoland (z datą: $currentInPoland).")
 
     case NewUpdate(_, _, Update(_, m)) if checkTime(m.date) && m.chat.isLeft =>
       worker = sender()
