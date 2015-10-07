@@ -72,8 +72,11 @@ class NTDBot extends Actor with ActorLogging {
     case NewUpdate(_, _, Update(_, m)) if checkTime(m.date) =>
       log.info(s"received $m from group chat")
 
-    case NewUpdate(_, _, Update(_, m)) =>
+    case NewUpdate(_, _, Update(_, m)) if m.chat.isLeft =>
       sender() ! SendMessage(m.chatId, "Nie czas NTD, pisz prosto na Mirko ( ͡° ʖ̯ ͡°)")
+
+    case NewUpdate(_, _, Update(_, m)) =>
+      log.info(s"received message $m, ignoring")
 
     case SendBuffer if cache.nonEmpty && currentTimeInPoland.isAfter(ntdEnd) =>
       log.info(s"sending buffer...")
