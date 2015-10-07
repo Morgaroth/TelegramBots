@@ -27,9 +27,9 @@ baseAssemblySettings
 
 assemblyJarName := s"fat-bots-" + version.value + ".jar"
 
-//mainClass := Some("io.github.morgaroth.telegram.bot.botserver.BotServer")
+mainClass := Some("io.github.morgaroth.telegram.bot.botserver.BotServer")
 
-mainClass := Some("io.github.morgaroth.telegram.bot.botserver.DevBotServer")
+//mainClass := Some("io.github.morgaroth.telegram.bot.botserver.DevBotServer")
 
 libraryDependencies ++= Seq(
   Spray.Client.`1.3.3`,
@@ -57,8 +57,8 @@ def keepClass(className: String) = s"-keep class $className"
 
 def keepCassWithMembers(cn: String)(fields: String*) =
   s"""-keepclasseswithmembers $cn {
-  |${fields.mkString("|  ","\n|  ","")}
-  |}""".stripMargin
+     |${fields.mkString("|  ", "\n|  ", "")}
+     |}""".stripMargin
 
 def keepClassWithConstructor(className: String) = s"-keep class $className { <init>(...); }"
 
@@ -95,7 +95,6 @@ val required =
     |
     |-keepclasseswithmembers class io.github.morgaroth.telegram.bot.core.** { *; }
     |
-    |#-keepclasseswithmembers class akka.dispatch.ForkJoinExecutorConfigurator$AkkaForkJoinPool {
     |-keepclasseswithmembers class scala.concurrent.forkjoin.ForkJoinPool {
     |  long ctl;
     |  long stealCount;
@@ -115,23 +114,16 @@ val required =
 
 ProguardKeys.options in Proguard ++= req ++ Seq(
   "-dontnote",
-  //      "-dontobfuscate",
   "-keepattributes Signature",
   "-dontwarn",
   "-keepattributes SourceFile,LineNumberTable",
   "-printmapping mappings.txt",
   "-ignorewarnings",
   "-optimizations !code/allocation/variable",
-  //  "-dontoptimize",
-  //  keepMain("io.github.morgaroth.telegram.bot.botserver.BotServer"),
-  keepMain("io.github.morgaroth.telegram.bot.botserver.DevBotServer"),
-  //  keepClass("com.typesafe.**"),
-  //  keepClass("akka.**"),
+  keepMain("io.github.morgaroth.telegram.bot.botserver.BotServer"),
+  //  keepMain("io.github.morgaroth.telegram.bot.botserver.DevBotServer"),
   required,
   "-keep class akka.actor.DefaultSupervisorStrategy",
-  //  "-keep class akka.dispatch.BoundedDequeBasedMessageQueueSemantics { *; }",
-  //  "-keep class akka.dispatch.UnboundedDequeBasedMessageQueueSemantics { *; }",
-  //  "-keep class akka.dispatch.DequeBasedMessageQueueSemantics { *; }",
   "-keep class akka.dispatch.MultipleConsumerSemantics"
 )
 
@@ -147,7 +139,7 @@ ProguardKeys.inputs in Proguard := Seq(
   (crossTarget in Compile).value / (assemblyJarName in assembly).value
 )
 
-//proguard in Proguard <<= (proguard in Proguard) dependsOn assembly
+proguard in Proguard <<= (proguard in Proguard) dependsOn assembly
 
 ProguardKeys.inputFilter in Proguard := { file =>
   file.name match {
