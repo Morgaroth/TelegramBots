@@ -25,11 +25,11 @@ resolvers ++= Seq(
 
 baseAssemblySettings
 
-//mainClass := Some("io.github.morgaroth.telegram.bot.botserver.BotServer")
-
 assemblyJarName := s"fat-bots-" + version.value + ".jar"
 
-mainClass := Some("io.github.morgaroth.telegram.bot.botserver.BotServer")
+//mainClass := Some("io.github.morgaroth.telegram.bot.botserver.BotServer")
+
+mainClass := Some("io.github.morgaroth.telegram.bot.botserver.DevBotServer")
 
 libraryDependencies ++= Seq(
   Spray.Client.`1.3.3`,
@@ -55,75 +55,32 @@ proguardSettings
 
 def keepClass(className: String) = s"-keep class $className"
 
-def keepClassWithConstructor(className: String) =
-  s"""-keepclasseswithmembers class $className {
-     |    <init>(...);
-     |}""".stripMargin
+def keepCassWithMembers(cn: String)(fields: String*) =
+  s"""-keepclasseswithmembers $cn {
+  |${fields.mkString("|  ","\n|  ","")}
+  |}""".stripMargin
 
-val notRequired =
-  """-keep class scala.collection.immutable.StringLike {
-    |  *;
-    |}
-    |-keepclasseswithmembers class * {
-    |  public <init>(java.lang.String, akka.actor.ActorSystem$Settings, akka.event.EventStream, akka.actor.Scheduler, akka.actor.DynamicAccess);
-    |}
-    |-keepclasseswithmembers class * {
-    |  public <init>(akka.actor.ExtendedActorSystem);
-    |}
-    |-keep class scala.collection.SeqLike {
-    |  public protected *;
-    |}
-    |-keepclassmembernames class * implements akka.actor.Actor {
-    |  akka.actor.ActorContext context;
-    |  akka.actor.ActorRef self;
-    |}
-    |-keep class * implements akka.actor.ExtensionId {
-    |  public <init>(...);
-    |}
-    |-keep class * implements akka.actor.ExtensionIdProvider {
-    |  public <init>(...);
-    |}
-    |-keep class akka.actor.SerializedActorRef {
-    |  *;
-    |}
-    |-keep class * implements akka.actor.SupervisorStrategyConfigurator {
-    |  public <init>(...);
-    |}
-    |-keep class * extends akka.dispatch.ExecutorServiceConfigurator {
-    |  public <init>(...);
-    |}
-    |-keep class * extends akka.dispatch.MessageDispatcherConfigurator {
-    |  public <init>(...);
-    |}
-    |-keep class akka.remote.DaemonMsgCreate {
-    |  *;
-    |}
-    |-keep class * extends akka.remote.RemoteTransport {
-    |  public <init>(...);
-    |}
-    |-keep class * implements akka.routing.RouterConfig {
-    |  public <init>(...);
-    |}
-    |-keep class * implements akka.serialization.Serializer {
-    |  public <init>(...);
-    |}
-    |-keepclasseswithmembers class io.github.morgaroth.telegram.** {
-    |  public <init>(...);
-    |}
-    |
-    |""".stripMargin
+def keepClassWithConstructor(className: String) = s"-keep class $className { <init>(...); }"
+
+def keepClassWithAllMembers(cn: String) = s"-keep class $cn { *; }"
+
+val req = Seq(
+  keepClassWithConstructor("akka.actor.LocalActorRefProvider$Guardian"),
+  keepClassWithConstructor("akka.actor.LocalActorRefProvider$SystemGuardian"),
+  keepClassWithConstructor("spray.can.HttpExt"),
+  keepClassWithConstructor("akka.routing.RoutedActorCell$RouterActorCreator"),
+  keepClassWithConstructor("akka.io.TcpOutgoingConnection"),
+  keepClassWithConstructor("akka.io.TcpManager"),
+  //  keepClassWithAllMembers("scala.concurrent.forkjoin.ForkJoinPool"),
+  keepClassWithConstructor("akka.event.Logging$LogExt"),
+  keepClassWithConstructor("akka.actor.LightArrayRevolverScheduler"),
+  keepClass("akka.dispatch.*MessageQueueSemantics")
+)
 
 val required =
   """
-    |-keep class akka.actor.LocalActorRefProvider$Guardian {
-    |  public <init>(...);
-    |}
-    |-keep class akka.actor.LocalActorRefProvider$SystemGuardian {
-    |  public <init>(...);
-    |}
-    |-keep class * implements akka.actor.ActorRefProvider {
-    |  public <init>(...);
-    |}
+    |-verbose
+    |-keep class * implements akka.actor.ActorRefProvider { public <init>(...); }
     |-keepclasseswithmembers class * implements akka.actor.Actor {
     |  <init>(...);
     |  akka.actor.ActorContext context;
@@ -133,34 +90,52 @@ val required =
     |  public <init>(...);
     |}
     |-keep class akka.event.Logging*
-    |-keep class akka.event.Logging$LogExt {
-    |  public <init>(...);
+    |
+    |-keep class spray.http.** { *; }
+    |
+    |-keepclasseswithmembers class io.github.morgaroth.telegram.bot.core.** { *; }
+    |
+    |#-keepclasseswithmembers class akka.dispatch.ForkJoinExecutorConfigurator$AkkaForkJoinPool {
+    |-keepclasseswithmembers class scala.concurrent.forkjoin.ForkJoinPool {
+    |  long ctl;
+    |  long stealCount;
+    |  int plock;
+    |  int indexSeed;
     |}
-    |""".stripMargin
+    |-keepclasseswithmembers class java.lang.Thread {
+    |  java.lang.Object parkBlocker;
+    |}
+    |-keepclasseswithmembers class scala.concurrent.forkjoin.ForkJoinPool$WorkQueue {
+    |  int qlock;
+    |}
+    |-keepclasseswithmembers class scala.concurrent.forkjoin.ForkJoinTask {
+    |  int status;
+    |}
+    | """.stripMargin
 
-ProguardKeys.options in Proguard ++= Seq(
+ProguardKeys.options in Proguard ++= req ++ Seq(
   "-dontnote",
-  "-dontobfuscate",
+  //      "-dontobfuscate",
+  "-keepattributes Signature",
   "-dontwarn",
+  "-keepattributes SourceFile,LineNumberTable",
+  "-printmapping mappings.txt",
   "-ignorewarnings",
-  //  "-optimizations !code/allocation/variable",
-  "-dontoptimize",
-  keepMain("io.github.morgaroth.telegram.bot.botserver.BotServer"),
-  keepClass("com.typesafe.**"),
-  keepClass("akka.**"),
+  "-optimizations !code/allocation/variable",
+  //  "-dontoptimize",
+  //  keepMain("io.github.morgaroth.telegram.bot.botserver.BotServer"),
+  keepMain("io.github.morgaroth.telegram.bot.botserver.DevBotServer"),
+  //  keepClass("com.typesafe.**"),
+  //  keepClass("akka.**"),
   required,
-  keepClassWithConstructor("akka.actor.LightArrayRevolverScheduler")
-  //  keepClassWithConstructor("akka.dispatch.*"),
-  //  keepClassWithConstructor("akka.dispatch.BoundedMessageQueueSemantics"),
-  //  keepClassWithConstructor("akka.dispatch.UnboundedMessageQueueSemantics"),
-  //  keepClassWithConstructor("akka.dispatch.DequeBasedMessageQueueSemantics"),
-  //  keepClassWithConstructor("akka.dispatch.BoundedDequeBasedMessageQueueSemantics"),
-  //  keepClassWithConstructor("akka.dispatch.UnboundedDequeBasedMessageQueueSemantics"),
-  //  keepClassWithConstructor("akka.actor.LocalActorRefProvider"),
-  //  keepClassWithConstructor("com.typesafe.config.impl.SimpleConfigOrigin")
+  "-keep class akka.actor.DefaultSupervisorStrategy",
+  //  "-keep class akka.dispatch.BoundedDequeBasedMessageQueueSemantics { *; }",
+  //  "-keep class akka.dispatch.UnboundedDequeBasedMessageQueueSemantics { *; }",
+  //  "-keep class akka.dispatch.DequeBasedMessageQueueSemantics { *; }",
+  "-keep class akka.dispatch.MultipleConsumerSemantics"
 )
 
-ProguardKeys.proguardVersion in Proguard := "5.1"
+ProguardKeys.proguardVersion in Proguard := "5.2.1"
 
 javaOptions in(Proguard, proguard) := Seq("-Xmx2G")
 

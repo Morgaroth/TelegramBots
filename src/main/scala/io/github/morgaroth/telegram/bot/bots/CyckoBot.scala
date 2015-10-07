@@ -113,9 +113,9 @@ class CyckoBot extends Actor with ActorLogging {
     case NoArgCommand("stats", (chat, _, _)) =>
       sender() ! SendMessage(chat.chatId,
         s"""Status are:
-          |* all files in database = ${FilesDao.dao.count()}
-          |* all subscribers in database = ${SubsDao.dao.count()}
-          |
+           |* all files in database = ${FilesDao.dao.count()}
+           |* all subscribers in database = ${SubsDao.dao.count()}
+           |
           |This is all for now.
       """.stripMargin)
 
@@ -305,7 +305,7 @@ class CyckoBot extends Actor with ActorLogging {
       case Success(res) =>
         log.info(s"get result with $res")
         val data = res.entity.data.toByteArray
-        val f: JFile = JFile.createTempFile("boobs", ".gif")
+        val f: JFile = JFile.createTempFile(Random.alphanumeric.take(10).mkString, ".boobs")
         val stream = new FileOutputStream(f)
         stream.write(data)
         stream.flush()
@@ -316,7 +316,7 @@ class CyckoBot extends Actor with ActorLogging {
           case Some(`Content-Type`(types)) => types.mediaType.value
           case None => "unrecognized"
         }
-        if (contentType == "image/gif") {
+        if (Set("image/gif", "image/jpeg") contains contentType) {
           val hash = calculateMD5(f)
           FilesDao.byHash(hash) match {
             case Some(previous) =>
@@ -328,7 +328,7 @@ class CyckoBot extends Actor with ActorLogging {
                   f.delete()
                 case Response(true, Right(m: Message), _) if m.document.isDefined =>
                   log.info(s"catched new boobs file ${m.document.get.file_id}")
-                  doSthWithNewFile(chatId, bot, Files(m.document.get.file_id, "document", hash), publish)
+                  doSthWithNewFile(chatId, bot, Files(m.document.get.file_id, Files.document, hash), publish)
                   f.delete()
                 case another =>
                   log.warning(s"dont know what is this $another")

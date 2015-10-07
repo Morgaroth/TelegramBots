@@ -46,7 +46,7 @@ object DevBotServer extends BotsApp {
     val bots: List[(String, (BotSecret => Props))] = List(
       "ForwadingBot" -> (s => ForwarderBot.props),
       "KeyboardTestBot" -> (s => TestKeyboardBot.props)
-      , "NTDBot" -> (s => NTDBot.props())
+//      , "NTDBot" -> (s => NTDBot.props())
       //      , "PollBot" -> (s => PollBot.props)
     )
     val configFile = new File(args(0))

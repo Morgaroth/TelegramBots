@@ -22,9 +22,7 @@ import scala.language.postfixOps
 
 case class Response[T](ok: Boolean, result: Either[String, T], description: Option[String])
 
-object Response {
-
-  import DefaultJsonProtocol._
+object Response extends DefaultJsonProtocol{
 
   implicit def namedListFormat[A: JsonFormat] = jsonFormat3(Response.apply[A])
 }

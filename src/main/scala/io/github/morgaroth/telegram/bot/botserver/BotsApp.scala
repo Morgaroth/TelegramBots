@@ -84,6 +84,7 @@ trait BotsApp {
   }
 
   lazy val as = ActorSystem("bots-server")
+  sys.addShutdownHook(as.shutdown())
   lazy val log = Logging(as, getClass)
   lazy val whConfig = {
     val raw = ConfigFactory.load()
