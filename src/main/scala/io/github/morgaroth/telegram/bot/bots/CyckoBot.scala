@@ -23,7 +23,8 @@ import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
 import org.joda.time.DateTime
 import spray.client.pipelining._
 import spray.http.HttpHeaders.`Content-Type`
-import spray.http.MediaTypes
+import spray.http.MediaTypes._
+import spray.http.{ContentType, MediaTypes}
 
 import scala.language.reflectiveCalls
 import scala.util.{Failure, Random, Success, Try}
@@ -164,12 +165,12 @@ class CyckoBot extends Actor with ActorLogging {
           if (m.reply_to_message.isDefined) {
             if (m.reply_to_message.get.document.isDefined) {
               val toRemove = m.reply_to_message.get.document.get.file_id
-              val a: Imports.WriteResult = FilesDao.dao.remove(MongoDBObject("_id" -> toRemove))
+              FilesDao.dao.remove(MongoDBObject("_id" -> toRemove))
               sender() ! SendMessage(m.chatId, "Deleted.")
             } else if (m.reply_to_message.get.photo.isDefined) {
               val photos = m.reply_to_message.get.photo.get
               val biggest: String = photos.sortBy(_.width).last.file_id
-              val a: Imports.WriteResult = FilesDao.dao.remove(MongoDBObject("_id" -> biggest))
+              FilesDao.dao.remove(MongoDBObject("_id" -> biggest))
               sender() ! SendMessage(m.chatId, "Deleted.")
             } else {
               sender() ! SendMessage(m.chatId, "Sorry, this message isn't a photo/file comment of reply.")
@@ -304,42 +305,44 @@ class CyckoBot extends Actor with ActorLogging {
     pipe(Get(link)).onComplete {
       case Success(res) =>
         log.info(s"get result with $res")
-        val data = res.entity.data.toByteArray
-        val f: JFile = JFile.createTempFile(Random.alphanumeric.take(10).mkString, ".boobs")
-        val stream = new FileOutputStream(f)
-        stream.write(data)
-        stream.flush()
-        stream.close()
         val contentType = res.headers.find(_.name == `Content-Type`.name) match {
-          case Some(`Content-Type`(types)) if types.mediaType == MediaTypes.`image/gif` =>
-            "image/gif"
-          case Some(`Content-Type`(types)) => types.mediaType.value
-          case None => "unrecognized"
+          case Some(`Content-Type`(ContentType(`image/gif`, _))) => Some("gif")
+          case Some(`Content-Type`(ContentType(`image/jpeg`, _))) => Some("jpeg")
+          case Some(`Content-Type`(ContentType(`image/png`, _))) => Some("png")
+          case Some(`Content-Type`(ContentType(`image/x-ms-bmp`, _))) => Some("bmp")
+          case _ => None
         }
-        if (Set("image/gif", "image/jpeg") contains contentType) {
-          val hash = calculateMD5(f)
+        contentType.foreach { ct =>
+          log.info(s"recovered content $ct")
+          val data = res.entity.data.toByteArray
+          val tmpFile = JFile.createTempFile(Random.alphanumeric.take(10).mkString("boobs", "", ""), ct)
+          val stream = new FileOutputStream(tmpFile)
+          stream.write(data)
+          stream.flush()
+          stream.close()
+          val hash = calculateMD5(tmpFile)
           FilesDao.byHash(hash) match {
             case Some(previous) =>
               bot ! SendMessage(chatId, "This image is already in DataBase")
+              tmpFile.delete()
             case None =>
-              bot ! SendMapped(SendDocument(chatId, Left(f)), {
+              bot ! SendMapped(SendDocument(chatId, Left(tmpFile)), {
                 case Response(true, Left(id), _) =>
                   log.info(s"received $id, I know what it is")
-                  f.delete()
+                  tmpFile.delete()
                 case Response(true, Right(m: Message), _) if m.document.isDefined =>
                   log.info(s"catched new boobs file ${m.document.get.file_id}")
                   doSthWithNewFile(chatId, bot, Files(m.document.get.file_id, Files.document, hash), publish)
-                  f.delete()
+                  tmpFile.delete()
                 case another =>
-                  log.warning(s"dont know what is this $another")
-                  f.delete()
+                  log.warning(s"don't know what is this $another")
+                  tmpFile.delete()
               })
           }
-        } else {
-          bot ! SendMessage(chatId, s"Can't recognize file, only accept image/gif, current is $contentType")
-          f.delete()
         }
-
+        contentType.getOrElse {
+          bot ! SendMessage(chatId, s"Can't recognize file, only accept image/gif, current is $contentType")
+        }
       case Failure(t) =>
         t.printStackTrace()
     }

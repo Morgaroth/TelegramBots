@@ -18,7 +18,7 @@ import scala.util.{Failure, Success, Try}
  */
 object NTDBot {
 
-  case class MessageMaxSize() extends IllegalArgumentException("widomość ma długość równą maximum dopuszczalnej przez Telegram API. Śmierdzi próbą haka")
+  case class MessageMaxSize() extends IllegalArgumentException("widomość ma długość równą maximum dopuszczalnej przez Telegram API. Śmierdzi próbą zepsucia bota.")
 
   case class NoInterestingContent() extends IllegalArgumentException("Widomość nie zawiera sensownej treści, ani linka żadnego, ani mediów. Tylko rozmawiasz?")
 
@@ -42,17 +42,22 @@ class NTDBot extends Actor with ActorLogging {
   val ntdEnd = new LocalTime(13, 0)
   val PolandTimeZone = DateTimeZone.forID("Poland")
 
-  def currentInPoland = DateTime.now(PolandTimeZone)
+  def currentDateInPoland = DateTime.now(PolandTimeZone)
 
-  def currentTimeInPoland = currentInPoland.toLocalTime
+  def currentTimeInPoland = currentDateInPoland.toLocalTime
 
   def checkTime(unix: Long) = {
-    val t = timeInPoland(unix * 1000)
-    t.isAfter(ntdBegin) && t.isBefore(ntdEnd)
+    val d = dateInPoland(unix * 1000)
+    if (Set(6, 7) contains d.dayOfWeek.get) {
+      false
+    } else {
+      val t = d.toLocalTime
+      t.isAfter(ntdBegin) && t.isBefore(ntdEnd)
+    }
   }
 
-  def timeInPoland(millis: Long): LocalTime = {
-    new DateTime(millis).toDateTime(PolandTimeZone).toLocalTime
+  def dateInPoland(millis: Long): DateTime = {
+    new DateTime(millis).toDateTime(PolandTimeZone)
   }
 
   context.system.scheduler.schedule(0 seconds, 30 seconds, self, SendBuffer)
@@ -62,10 +67,10 @@ class NTDBot extends Actor with ActorLogging {
       Success(m)
     } else if (m.text.isDefined) {
       val t = m.text.get
-      if (t.contains("http://") || t.contains("https://")) {
+      if (t.length < 4096) {
         Success(m)
       } else {
-        Failure(new NoInterestingContent())
+        Failure(new MessageMaxSize())
       }
     } else {
       Failure(new NoInterestingContent())
@@ -84,7 +89,7 @@ class NTDBot extends Actor with ActorLogging {
     case NoArgCommand("localTime", (Left(ch), _, _)) =>
       log.info(s"message from chat $ch")
       worker = sender()
-      sender() ! SendMessage(ch.id, s"aktualnie jest $currentTimeInPoland (z datą: $currentInPoland).")
+      sender() ! SendMessage(ch.id, s"aktualnie jest $currentTimeInPoland (z datą: $currentDateInPoland).")
 
     case NoArgCommand(any, (Left(user), _, _)) =>
       sender() ! SendMessage(user.id, s"Nie zmam komendy '$any'.")

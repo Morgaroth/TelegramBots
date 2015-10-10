@@ -40,7 +40,7 @@ libraryDependencies ++= Seq(
   Joda.Convert.`1.7`,
   Akka.Actor.`2.3.12`,
   Ficus.Config.`1.1.2`,
-  Morgaroth.UtilsMongo.`1.2.10`,
+  Morgaroth.UtilsMongo.`1.2.10` withSources(),
   Pathikrit.BetterFiles.`2.6.1`,
   "com.tumblr" % "jumblr" % "0.0.11"
 )
@@ -64,37 +64,25 @@ def keepClassWithConstructor(className: String) = s"-keep class $className { <in
 
 def keepClassWithAllMembers(cn: String) = s"-keep class $cn { *; }"
 
-val req = Seq(
-  keepClassWithConstructor("akka.actor.LocalActorRefProvider$Guardian"),
-  keepClassWithConstructor("akka.actor.LocalActorRefProvider$SystemGuardian"),
-  keepClassWithConstructor("spray.can.HttpExt"),
-  keepClassWithConstructor("akka.routing.RoutedActorCell$RouterActorCreator"),
-  keepClassWithConstructor("akka.io.TcpOutgoingConnection"),
-  keepClassWithConstructor("akka.io.TcpManager"),
-  //  keepClassWithAllMembers("scala.concurrent.forkjoin.ForkJoinPool"),
-  keepClassWithConstructor("akka.event.Logging$LogExt"),
-  keepClassWithConstructor("akka.actor.LightArrayRevolverScheduler"),
-  keepClass("akka.dispatch.*MessageQueueSemantics")
-)
-
-val required =
+val akka =
   """
-    |-verbose
+    |-keep class akka.actor.LocalActorRefProvider$Guardian { <init>(...); }
+    |-keep class akka.actor.LocalActorRefProvider$SystemGuardian { <init>(...); }
+    |-keep class spray.can.HttpExt { <init>(...); }
+    |-keep class akka.routing.RoutedActorCell$RouterActorCreator { <init>(...); }
+    |-keep class akka.io.TcpOutgoingConnection { <init>(...); }
+    |-keep class akka.io.TcpManager { <init>(...); }
+    |-keep class akka.event.Logging$LogExt { <init>(...); }
+    |-keep class akka.actor.LightArrayRevolverScheduler { <init>(...); }
+    |-keep class akka.dispatch.*MessageQueueSemantics
     |-keep class * implements akka.actor.ActorRefProvider { public <init>(...); }
     |-keepclasseswithmembers class * implements akka.actor.Actor {
     |  <init>(...);
     |  akka.actor.ActorContext context;
     |  akka.actor.ActorRef self;
     |}
-    |-keep class * implements akka.dispatch.MailboxType {
-    |  public <init>(...);
-    |}
+    |-keep class * implements akka.dispatch.MailboxType { public <init>(...); }
     |-keep class akka.event.Logging*
-    |
-    |-keep class spray.http.** { *; }
-    |
-    |-keepclasseswithmembers class io.github.morgaroth.telegram.bot.core.** { *; }
-    |
     |-keepclasseswithmembers class scala.concurrent.forkjoin.ForkJoinPool {
     |  long ctl;
     |  long stealCount;
@@ -110,20 +98,67 @@ val required =
     |-keepclasseswithmembers class scala.concurrent.forkjoin.ForkJoinTask {
     |  int status;
     |}
+    |
+    |-keep class akka.actor.DefaultSupervisorStrategy
+    |-keep class akka.dispatch.MultipleConsumerSemantics
     | """.stripMargin
 
-ProguardKeys.options in Proguard ++= req ++ Seq(
-  "-dontnote",
-  "-keepattributes Signature",
-  "-dontwarn",
-//  "-printmapping mappings.txt",
-  "-ignorewarnings",
-  "-optimizations !code/allocation/variable",
+val spray =
+  """
+    |-keep class spray.http.** { *; }
+    |
+  """.stripMargin
+
+
+val modificators =
+  """
+    |-verbose
+    |-dontnote
+    |-keepattributes Signature,InnerClasses,EnclosingMethod,SourceFile,LineNumberTable
+    |-renamesourcefileattribute SourceFile
+    |-dontwarn
+    |-printmapping mappings.txt
+    |-ignorewarnings
+    |-optimizations !code/allocation/variable
+    | """.stripMargin
+
+val program =
+  """
+    |-keep class org.slf4j.ILoggerFactory
+    |#-keepclasseswithmembers class io.github.morgaroth.telegram.bot.core.** { *; }
+    |-keepclasseswithmembers class io.github.morgaroth.telegram.bot.** { *; }
+    |
+    | """.stripMargin
+
+//
+//
+//"I will marry my fiancée Lidia in June 2017."
+//"If I (and my projects) were help for you please consider a gift to my wedding: LINK. "
+//"It would be highly appreciated!"
+//"Best regards"
+//"Mateusz Jaje, Morgaroth"
+
+val mongoProguard =
+  """
+    |-keepclassmembers class com.mongodb.casbah.Implicits$$anon$4 {
+    |  com.mongodb.casbah.MongoCollection asScala();
+    |}
+    |-keepclassmembers class com.mongodb.casbah.Implicits$$anon$5 {
+    |  com.mongodb.casbah.MongoDB asScala();
+    |}
+    |
+    |-keep interface com.mongodb.ConnectionPoolStatisticsMBean
+    |-keepclasseswithmembers class com.mongodb.ConnectionPoolStatistics { *; }
+    | """.stripMargin
+
+ProguardKeys.options in Proguard ++= Seq(
   keepMain("io.github.morgaroth.telegram.bot.botserver.BotServer"),
   //  keepMain("io.github.morgaroth.telegram.bot.botserver.DevBotServer"),
-  required,
-  "-keep class akka.actor.DefaultSupervisorStrategy",
-  "-keep class akka.dispatch.MultipleConsumerSemantics"
+  spray,
+  program,
+  modificators,
+  akka,
+  mongoProguard
 )
 
 ProguardKeys.proguardVersion in Proguard := "5.2.1"
@@ -138,7 +173,7 @@ ProguardKeys.inputs in Proguard := Seq(
   (crossTarget in Compile).value / (assemblyJarName in assembly).value
 )
 
-proguard in Proguard <<= (proguard in Proguard) dependsOn assembly
+//proguard in Proguard <<= (proguard in Proguard) dependsOn assembly
 
 ProguardKeys.inputFilter in Proguard := { file =>
   file.name match {
