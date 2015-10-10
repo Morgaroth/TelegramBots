@@ -315,7 +315,7 @@ class CyckoBot extends Actor with ActorLogging {
         contentType.foreach { ct =>
           log.info(s"recovered content $ct")
           val data = res.entity.data.toByteArray
-          val tmpFile = JFile.createTempFile(Random.alphanumeric.take(10).mkString("boobs", "", ""), ct)
+          val tmpFile = JFile.createTempFile(Random.alphanumeric.take(10).mkString("boobs", "", ""), s".$ct")
           val stream = new FileOutputStream(tmpFile)
           stream.write(data)
           stream.flush()
