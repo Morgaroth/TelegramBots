@@ -52,17 +52,6 @@ enablePlugins(SbtCommons)
 
 proguardSettings
 
-def keepClass(className: String) = s"-keep class $className"
-
-def keepCassWithMembers(cn: String)(fields: String*) =
-  s"""-keepclasseswithmembers $cn {
-     |${fields.mkString("|  ", "\n|  ", "")}
-     |}""".stripMargin
-
-def keepClassWithConstructor(className: String) = s"-keep class $className { <init>(...); }"
-
-def keepClassWithAllMembers(cn: String) = s"-keep class $cn { *; }"
-
 val akka =
   """
     |-keep class akka.actor.LocalActorRefProvider$Guardian { <init>(...); }
@@ -114,10 +103,10 @@ val modificators =
     |-verbose
     |-dontnote
     |-keepattributes Signature,InnerClasses,EnclosingMethod,SourceFile,LineNumberTable
-    |-renamesourcefileattribute SourceFile
     |-dontwarn
     |-printmapping mappings.txt
     |-ignorewarnings
+    |#-dontobfuscate
     |-optimizations !code/allocation/variable
     | """.stripMargin
 
@@ -126,7 +115,6 @@ val program =
     |-keep class org.slf4j.ILoggerFactory
     |#-keepclasseswithmembers class io.github.morgaroth.telegram.bot.core.** { *; }
     |-keepclasseswithmembers class io.github.morgaroth.telegram.bot.** { *; }
-    |
     | """.stripMargin
 
 //
@@ -148,6 +136,8 @@ val mongoProguard =
     |
     |-keep interface com.mongodb.ConnectionPoolStatisticsMBean
     |-keepclasseswithmembers class com.mongodb.ConnectionPoolStatistics { *; }
+    |
+    |#-keep class scala.tools.scalap.scalax.rules.scalasig.ScalaSig
     | """.stripMargin
 
 ProguardKeys.options in Proguard ++= Seq(

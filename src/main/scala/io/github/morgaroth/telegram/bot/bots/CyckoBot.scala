@@ -72,9 +72,15 @@ trait FilesDao {
   lazy val dao = new SalatDAOWithCfg[Files](uri, collection.getOrElse("files")) {}
 
   def random(x: Int): List[Files] = {
-    List.fill(x) {
-      dao.find(MongoDBObject("random" -> MongoDBObject("$gt" -> Random.nextDouble()))).sort(MongoDBObject("random" -> 1)).take(1).toList.headOption
-    }.flatten
+    if (dao.count() != 0) {
+      Stream.continually(
+        dao
+          .find(MongoDBObject("random" -> MongoDBObject("$gt" -> Random.nextDouble())))
+          .sort(MongoDBObject("random" -> 1))
+          .take(1)
+          .toList.headOption
+      ).flatten.take(x).toList
+    } else List.empty
   }
 
   def byHash(hash: String): Option[Files] = dao.findOne(MongoDBObject("hash" -> hash))
