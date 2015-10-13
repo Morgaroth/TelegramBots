@@ -28,9 +28,9 @@ object BotActor {
 
   case class SendMapped(response: Command, fun: PartialFunction[Any, Unit])
 
-  case class FetchFile(f: File, `type`: String, author: Int)
+  case class FetchFile(f: File, `type`: String, author: Chat)
 
-  case class FileFetchingResult(file: File, author: Int, `type`: String, result: Try[Array[Byte]])
+  case class FileFetchingResult(file: File, author: Chat, `type`: String, result: Try[Array[Byte]])
 
   object HandledUpdate {
     def apply(u: NewUpdate, response: Command): HandledUpdate = apply(u.id, response)

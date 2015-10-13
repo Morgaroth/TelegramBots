@@ -102,28 +102,19 @@ val modificators =
   """
     |-verbose
     |-dontnote
-    |-keepattributes Signature,InnerClasses,EnclosingMethod,SourceFile,LineNumberTable
+    |-keepattributes Signature,*Annotation*
     |-dontwarn
     |-printmapping mappings.txt
     |-ignorewarnings
-    |#-dontobfuscate
     |-optimizations !code/allocation/variable
     | """.stripMargin
 
 val program =
   """
     |-keep class org.slf4j.ILoggerFactory
-    |#-keepclasseswithmembers class io.github.morgaroth.telegram.bot.core.** { *; }
     |-keepclasseswithmembers class io.github.morgaroth.telegram.bot.** { *; }
+    |-keep class org.slf4j.impl.StaticLoggerBinder
     | """.stripMargin
-
-//
-//
-//"I will marry my fiancée Lidia in June 2017."
-//"If I (and my projects) were help for you please consider a gift to my wedding: LINK. "
-//"It would be highly appreciated!"
-//"Best regards"
-//"Mateusz Jaje, Morgaroth"
 
 val mongoProguard =
   """
@@ -136,8 +127,6 @@ val mongoProguard =
     |
     |-keep interface com.mongodb.ConnectionPoolStatisticsMBean
     |-keepclasseswithmembers class com.mongodb.ConnectionPoolStatistics { *; }
-    |
-    |#-keep class scala.tools.scalap.scalax.rules.scalasig.ScalaSig
     | """.stripMargin
 
 ProguardKeys.options in Proguard ++= Seq(
@@ -162,7 +151,7 @@ ProguardKeys.inputs in Proguard := Seq(
   (crossTarget in Compile).value / (assemblyJarName in assembly).value
 )
 
-//proguard in Proguard <<= (proguard in Proguard) dependsOn assembly
+proguard in Proguard <<= (proguard in Proguard) dependsOn assembly
 
 ProguardKeys.inputFilter in Proguard := { file =>
   file.name match {

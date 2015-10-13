@@ -9,7 +9,7 @@ import com.mongodb.MongoException.DuplicateKey
 import com.mongodb.casbah.Imports.mongoCollAsScala
 import com.mongodb.casbah.commons.MongoDBObject
 import com.mongodb.casbah.commons.conversions.scala.RegisterJodaTimeConversionHelpers
-import com.mongodb.casbah.{Imports, MongoClient, MongoClientURI, WriteConcern}
+import com.mongodb.casbah.{MongoClient, MongoClientURI, WriteConcern}
 import com.novus.salat.Context
 import com.novus.salat.annotations.Key
 import com.novus.salat.dao.SalatDAO
@@ -17,21 +17,18 @@ import com.novus.salat.global.ctx
 import io.github.morgaroth.telegram.bot.bots.CyckoBot.PublishBoobs
 import io.github.morgaroth.telegram.bot.core.api.methods.Response
 import io.github.morgaroth.telegram.bot.core.api.models._
-import io.github.morgaroth.telegram.bot.core.api.models.extractors.{SingleArgCommand, NoArgCommand, SingleArgCommandMessage}
+import io.github.morgaroth.telegram.bot.core.api.models.extractors.{NoArgCommand, SingleArgCommand}
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
 import org.joda.time.DateTime
 import spray.client.pipelining._
+import spray.http.ContentType
 import spray.http.HttpHeaders.`Content-Type`
 import spray.http.MediaTypes._
-import spray.http.{ContentType, MediaTypes}
 
 import scala.language.reflectiveCalls
 import scala.util.{Failure, Random, Success, Try}
 
-/**
- * Created by mateusz on 23.09.15.
- */
 abstract class SalatDAOWithCfg[ObjectType <: AnyRef](databaseUri: String, collectionName: String)
                                                     (implicit mot: Manifest[ObjectType], ctx: Context)
   extends SalatDAO[ObjectType, String](
@@ -57,7 +54,14 @@ trait BoobsListenerDao {
   lazy val dao = new SalatDAOWithCfg[BoobsListener](uri, collection.getOrElse("listeners")) {}
 }
 
-case class Files(@Key("_id") fileId: String, typ: String, hash: String, random: Double = Random.nextDouble(), created: DateTime = DateTime.now())
+case class Files(
+                  @Key("_id") fileId: String,
+                  typ: String,
+                  hash: String,
+                  creator: Option[UberUser] = None,
+                  random: Double = Random.nextDouble(),
+                  created: DateTime = DateTime.now()
+                  )
 
 object Files {
   val document = "document"
@@ -90,7 +94,7 @@ trait FilesDao {
 
 object CyckoBot {
 
-  private[CyckoBot] case class PublishBoobs(f: Files, owner: Int, worker: Option[ActorRef] = None)
+  private[CyckoBot] case class PublishBoobs(f: Files, owner: Chat, worker: Option[ActorRef] = None)
 
   def props() =
     Props(classOf[CyckoBot])
@@ -112,10 +116,10 @@ class CyckoBot extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case SingleArgCommand("resolve", arg, (chat, _, _)) =>
-      resolveLink(arg, chat.chatId, sender())
+      resolveLink(arg, chat, sender())
 
     case SingleArgCommand("add", arg, (chat, _, _)) =>
-      resolveLink(arg, chat.chatId, sender(), publish = false)
+      resolveLink(arg, chat, sender(), publish = false)
 
     case NoArgCommand("stats", (chat, _, _)) =>
       sender() ! SendMessage(chat.chatId,
@@ -205,7 +209,7 @@ class CyckoBot extends Actor with ActorLogging {
         case None =>
           hardSender ! SendMapped(GetFile(biggest.file_id), {
             case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
-              hardSender ! FetchFile(f, Files.photo, u.message.chatId)
+              hardSender ! FetchFile(f, Files.photo, u.message.chat)
               log.info(s"got file $fPath, downloading started")
             case other =>
               log.warning(s"got other response $other")
@@ -219,7 +223,7 @@ class CyckoBot extends Actor with ActorLogging {
         case Some(prev) => "This image is already in DataBase"
         case None =>
           Try {
-            val files = Files(fId, t, hash)
+            val files = Files(fId, t, hash, Some(author.uber))
             FilesDao.dao.insert(files)
             self.forward(PublishBoobs(files, author))
             "Thx!"
@@ -228,7 +232,7 @@ class CyckoBot extends Actor with ActorLogging {
             case anot => s"Another error ${anot.getMessage}"
           }.get
       }
-      sender() ! SendMessage(author, info)
+      sender() ! SendMessage(author.chatId, info)
 
     case s: FileFetchingResult =>
       log.warning(s"error fetching file: $s")
@@ -246,7 +250,7 @@ class CyckoBot extends Actor with ActorLogging {
             case None =>
               hardSender ! SendMapped(GetFile(doc.file_id), {
                 case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
-                  hardSender ! FetchFile(f, Files.document, u.message.chatId)
+                  hardSender ! FetchFile(f, Files.document, u.message.chat)
                   log.info(s"got file $fPath, downloading started")
                 case other =>
                   log.warning(s"got other response $other")
@@ -297,7 +301,7 @@ class CyckoBot extends Actor with ActorLogging {
     if (fId.typ == Files.document) SendDocument(to, Right(fId.fileId)) else SendPhoto(to, Right(fId.fileId))
   }
 
-  def doSthWithNewFile(chatId: Int, worker: ActorRef, files: Files, publish: Boolean = true) = {
+  def doSthWithNewFile(chatId: Chat, worker: ActorRef, files: Files, publish: Boolean = true) = {
     Try(FilesDao.dao.insert(files)).map(x => log.info(s"saved to db $files")).getOrElse {
       log.warning(s"not saved $files")
     }
@@ -306,7 +310,7 @@ class CyckoBot extends Actor with ActorLogging {
     }
   }
 
-  def resolveLink(link: String, chatId: Int, bot: ActorRef, publish: Boolean = true): Unit = {
+  def resolveLink(link: String, user: Chat, bot: ActorRef, publish: Boolean = true): Unit = {
     val pipe = sendReceive
     pipe(Get(link)).onComplete {
       case Success(res) =>
@@ -329,16 +333,16 @@ class CyckoBot extends Actor with ActorLogging {
           val hash = calculateMD5(tmpFile)
           FilesDao.byHash(hash) match {
             case Some(previous) =>
-              bot ! SendMessage(chatId, "This image is already in DataBase")
+              bot ! SendMessage(user.chatId, "This image is already in DataBase")
               tmpFile.delete()
             case None =>
-              bot ! SendMapped(SendDocument(chatId, Left(tmpFile)), {
+              bot ! SendMapped(SendDocument(user.chatId, Left(tmpFile)), {
                 case Response(true, Left(id), _) =>
                   log.info(s"received $id, I know what it is")
                   tmpFile.delete()
                 case Response(true, Right(m: Message), _) if m.document.isDefined =>
                   log.info(s"catched new boobs file ${m.document.get.file_id}")
-                  doSthWithNewFile(chatId, bot, Files(m.document.get.file_id, Files.document, hash), publish)
+                  doSthWithNewFile(user, bot, Files(m.document.get.file_id, Files.document, hash, Some(user.uber)), publish)
                   tmpFile.delete()
                 case another =>
                   log.warning(s"don't know what is this $another")
@@ -347,7 +351,7 @@ class CyckoBot extends Actor with ActorLogging {
           }
         }
         contentType.getOrElse {
-          bot ! SendMessage(chatId, s"Can't recognize file, only accept image/gif, current is $contentType")
+          bot ! SendMessage(user.chatId, s"Can't recognize file, only accept image/gif, current is $contentType")
         }
       case Failure(t) =>
         t.printStackTrace()

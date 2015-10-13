@@ -30,6 +30,20 @@ object NoArgCommand {
   }
 }
 
+object NoArgReplyCommand {
+  def unapply(u: NewUpdate): Option[(String, Message, (Int, User, Int))] = {
+    u match {
+      case NewUpdate(_, _, Update(uId, m)) if m.reply_to_message.isDefined =>
+        m.copy(reply_to_message = None) match {
+          case NoArgCommandMessage(command, (chat, from, _)) =>
+            Some((command, m.reply_to_message.get, (m.chatId, m.from, m.message_id)))
+          case _ => None
+        }
+      case _ => None
+    }
+  }
+}
+
 object SingleArgCommandMessage {
   def unapply(m: Message): Option[(String, String, (Chat, User, Int))] = {
     m match {

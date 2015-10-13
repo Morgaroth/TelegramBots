@@ -224,7 +224,13 @@ object ForceReply {
                        first_name: String,
                        last_name: Option[String],
                        username: Option[String]
-                       )
+                       ) {
+  def getAnyUserName = {
+    username.getOrElse {
+      last_name.map(x => s"$first_name $x").getOrElse(first_name)
+    }
+  }
+}
 
 /**
  * https://core.telegram.org/bots/api#groupchat
