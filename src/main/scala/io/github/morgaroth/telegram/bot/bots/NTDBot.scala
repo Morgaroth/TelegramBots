@@ -143,10 +143,12 @@ class NTDBot extends Actor with ActorLogging {
     case BanReminder if bans.nonEmpty && (currentTimeInPoland.isAfter(banEnd) || currentTimeInPoland.isBefore(ntdBegin)) =>
       val bannedUsers = bans.toList.groupBy(_._2).mapValues(_.map(_._1))
       val banss = bannedUsers.map {
-        case (punisher, banned) => s"@${punisher.getAnyUserName}, może powinieneś przywrócić ${banned.map(_.getAnyUserName).mkString(", ")} do Mirko?"
+        case (punisher, banned) =>
+          val punisherWord = if (punisher.first_name.endsWith("a")) "powinnaś" else "powinieneś"
+          s"${punisher.getAnyUserName}, może $punisherWord przywrócić ${banned.map(_.getAnyUserName).mkString(", ")} do Mirko?"
       }
       val (word, word1) = if (bans.size > 2) ("ich", "odpokutowali") else if (bans.head._1.first_name.endsWith("a")) ("ją", "odpokutowała") else ("go", "odpokutował")
-      val information = banss.mkString("Przypomnienie o banach!", "\n", s"\nPrzywróćcie $word, już " + word1 + "!\n( ͡° ʖ̯ ͡°)")
+      val information = banss.mkString("Przypomnienie o banach!\n", "\n", s"\nPrzywróćcie $word, już " + word1 + "!\n( ͡° ʖ̯ ͡°)")
       worker ! SendMessage(mirkoId, information)
   }
 }
