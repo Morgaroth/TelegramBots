@@ -1,6 +1,7 @@
 package io.github.morgaroth.telegram.bot.botserver
 
 import java.io.File
+import io.github.morgaroth.telegram.bot.bots.boobsbot.CyckoBot
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 

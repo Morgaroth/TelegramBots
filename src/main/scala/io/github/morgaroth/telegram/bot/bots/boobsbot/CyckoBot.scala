@@ -1,100 +1,42 @@
-package io.github.morgaroth.telegram.bot.bots
+package io.github.morgaroth.telegram.bot.bots.boobsbot
 
-import java.io.{File => JFile, FileOutputStream}
+import java.io.{File => JFile}
 import java.security.MessageDigest
 import javax.xml.bind.DatatypeConverter
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.event.LoggingAdapter
 import com.mongodb.MongoException.DuplicateKey
-import com.mongodb.casbah.Imports.mongoCollAsScala
 import com.mongodb.casbah.commons.MongoDBObject
-import com.mongodb.casbah.commons.conversions.scala.RegisterJodaTimeConversionHelpers
-import com.mongodb.casbah.{MongoClient, MongoClientURI, WriteConcern}
-import com.novus.salat.Context
 import com.novus.salat.annotations.Key
-import com.novus.salat.dao.SalatDAO
 import com.novus.salat.global.ctx
-import io.github.morgaroth.telegram.bot.bots.CyckoBot.PublishBoobs
+import com.typesafe.config.{Config, ConfigFactory}
+import io.github.morgaroth.telegram.bot.bots.boobsbot.CyckoBot.PublishBoobs
+import io.github.morgaroth.telegram.bot.bots.boobsbot.FetchAndCalculateHash.{NoContentInformation, UnsupportedBoobsContent}
 import io.github.morgaroth.telegram.bot.core.api.methods.Response
 import io.github.morgaroth.telegram.bot.core.api.models._
-import io.github.morgaroth.telegram.bot.core.api.models.extractors.{NoArgCommand, SingleArgCommand}
+import io.github.morgaroth.telegram.bot.core.api.models.extractors.{MultiArgCommand, NoArgCommand, SingleArgCommand}
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
+import io.github.morgaroth.utils.mongodb.salat.MongoDAO
 import org.joda.time.DateTime
-import spray.client.pipelining._
-import spray.http.ContentType
-import spray.http.HttpHeaders.`Content-Type`
-import spray.http.MediaTypes._
 
 import scala.language.reflectiveCalls
-import scala.util.{Failure, Random, Success, Try}
-
-abstract class SalatDAOWithCfg[ObjectType <: AnyRef](databaseUri: String, collectionName: String)
-                                                    (implicit mot: Manifest[ObjectType], ctx: Context)
-  extends SalatDAO[ObjectType, String](
-    collection = {
-      val clientURI = MongoClientURI(databaseUri)
-      val dbName = clientURI.database.getOrElse {
-        throw new IllegalArgumentException(s"You must provide database name in connection uri")
-      }
-      MongoClient(clientURI)(dbName).getCollection(collectionName).asScala
-    }) {
-  override def defaultWriteConcern = WriteConcern.Acknowledged
-
-  RegisterJodaTimeConversionHelpers()
-}
+import scala.util.{Failure, Success, Try}
 
 case class BoobsListener(@Key("_id") id: String, chatId: Int, created: DateTime = DateTime.now())
 
 trait BoobsListenerDao {
-  def uri: String
+  def config: Config
 
   def collection: Option[String] = None
 
-  lazy val dao = new SalatDAOWithCfg[BoobsListener](uri, collection.getOrElse("listeners")) {}
-}
-
-case class Files(
-                  @Key("_id") fileId: String,
-                  typ: String,
-                  hash: String,
-                  creator: Option[UberUser] = None,
-                  random: Double = Random.nextDouble(),
-                  created: DateTime = DateTime.now()
-                  )
-
-object Files {
-  val document = "document"
-  val photo = "photo"
-}
-
-trait FilesDao {
-  def uri: String
-
-  def collection: Option[String] = None
-
-  lazy val dao = new SalatDAOWithCfg[Files](uri, collection.getOrElse("files")) {}
-
-  def random(x: Int): List[Files] = {
-    if (dao.count() != 0) {
-      Stream.continually(
-        dao
-          .find(MongoDBObject("random" -> MongoDBObject("$gt" -> Random.nextDouble())))
-          .sort(MongoDBObject("random" -> 1))
-          .take(1)
-          .toList.headOption
-      ).flatten.take(x).toList
-    } else List.empty
-  }
-
-  def byHash(hash: String): Option[Files] = dao.findOne(MongoDBObject("hash" -> hash))
-
-  def byId(id: String): Option[Files] = dao.findOneById(id)
+  lazy val dao = new MongoDAO[BoobsListener](config, collection.getOrElse("listeners")) {}
 }
 
 object CyckoBot {
 
-  private[CyckoBot] case class PublishBoobs(f: Files, owner: Chat, worker: Option[ActorRef] = None)
+  private[CyckoBot] case class PublishBoobs(f: Boobs, owner: Chat, worker: Option[ActorRef] = None)
 
   def props() =
     Props(classOf[CyckoBot])
@@ -103,14 +45,17 @@ object CyckoBot {
 class CyckoBot extends Actor with ActorLogging {
 
   import context.dispatcher
+  import context.system
+
+  implicit def implLog: LoggingAdapter = log
 
   val hardSelf = self
 
-  val FilesDao = new FilesDao {
-    override def uri: String = "mongodb://localhost/CyckoBot"
+  val FilesDao = new BoobsDao {
+    override def config = ConfigFactory.parseString( """uri = "mongodb://localhost/CyckoBot" """)
   }
   val SubsDao = new BoobsListenerDao {
-    override def uri: String = "mongodb://localhost/CyckoBot"
+    override def config = ConfigFactory.parseString( """uri = "mongodb://localhost/CyckoBot" """)
   }
 
 
@@ -130,13 +75,32 @@ class CyckoBot extends Actor with ActorLogging {
           |This is all for now.
       """.stripMargin)
 
-    case NoArgCommand("all", (ch, user, _)) =>
-      if (user.id == 36792931) {
-        FilesDao.dao.find(MongoDBObject.empty).foreach(f =>
-          sender() ! SendBoobsCorrectType(ch.chatId, f)
-        )
-      } else {
-        sender() ! SendMessage(ch.chatId, s"Sorry, I dont know command 'all'.")
+    case NoArgCommand("all", (ch, user, _)) if user.id == 36792931 =>
+      FilesDao.dao.find(MongoDBObject.empty).foreach(f =>
+        sender() ! SendBoobsCorrectType(ch.chatId, f)
+      )
+
+    case MultiArgCommand("updatedb", args, (ch, user, _)) if user.id == 36792931 =>
+      val sen = sender()
+      Try {
+        val f = args.map(_.toInt) match {
+          case from :: to :: Nil =>
+            println(s"from $from to $to")
+            LinksFromTumblrFetch.runAsync("boobsinmotion", from, Some(to))
+          case from :: Nil => LinksFromTumblrFetch.runAsync("boobsinmotion", from)
+          case Nil => LinksFromTumblrFetch.runAsync("boobsinmotion", 0)
+        }
+        f.onComplete {
+          case Success(_) =>
+            sen ! SendMessage(ch.chatId, s"fetching BoobsinMotion blog with args $args end with success")
+          case Failure(t) =>
+            sen ! SendMessage(ch.chatId, s"fetching BoobsinMotion blog with args $args end with error: ${t.getMessage}")
+            log.error(t, "fetching images")
+        }
+      }.recover {
+        case t =>
+          sen ! SendMessage(ch.chatId, s"parsing arguments for command fetching blog end with error ${t.getMessage}")
+          log.error(t, "parsing arguments")
       }
 
     case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined =>
@@ -209,7 +173,7 @@ class CyckoBot extends Actor with ActorLogging {
         case None =>
           hardSender ! SendMapped(GetFile(biggest.file_id), {
             case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
-              hardSender ! FetchFile(f, Files.photo, u.message.chat)
+              hardSender ! FetchFile(f, Boobs.photo, u.message.chat)
               log.info(s"got file $fPath, downloading started")
             case other =>
               log.warning(s"got other response $other")
@@ -223,7 +187,7 @@ class CyckoBot extends Actor with ActorLogging {
         case Some(prev) => "This image is already in DataBase"
         case None =>
           Try {
-            val files = Files(fId, t, hash, Some(author.uber))
+            val files = Boobs(fId, t, hash, Some(author.uber))
             FilesDao.dao.insert(files)
             self.forward(PublishBoobs(files, author))
             "Thx!"
@@ -250,7 +214,7 @@ class CyckoBot extends Actor with ActorLogging {
             case None =>
               hardSender ! SendMapped(GetFile(doc.file_id), {
                 case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
-                  hardSender ! FetchFile(f, Files.document, u.message.chat)
+                  hardSender ! FetchFile(f, Boobs.document, u.message.chat)
                   log.info(s"got file $fPath, downloading started")
                 case other =>
                   log.warning(s"got other response $other")
@@ -297,11 +261,11 @@ class CyckoBot extends Actor with ActorLogging {
     sender() ! SendMessage(chatId, text, Some("Markdown"))
   }
 
-  def SendBoobsCorrectType(to: Int, fId: Files): Command = {
-    if (fId.typ == Files.document) SendDocument(to, Right(fId.fileId)) else SendPhoto(to, Right(fId.fileId))
+  def SendBoobsCorrectType(to: Int, fId: Boobs): Command = {
+    if (fId.typ == Boobs.document) SendDocument(to, Right(fId.fileId)) else SendPhoto(to, Right(fId.fileId))
   }
 
-  def doSthWithNewFile(chatId: Chat, worker: ActorRef, files: Files, publish: Boolean = true) = {
+  def doSthWithNewFile(chatId: Chat, worker: ActorRef, files: Boobs, publish: Boolean = true) = {
     Try(FilesDao.dao.insert(files)).map(x => log.info(s"saved to db $files")).getOrElse {
       log.warning(s"not saved $files")
     }
@@ -311,51 +275,33 @@ class CyckoBot extends Actor with ActorLogging {
   }
 
   def resolveLink(link: String, user: Chat, bot: ActorRef, publish: Boolean = true): Unit = {
-    val pipe = sendReceive
-    pipe(Get(link)).onComplete {
-      case Success(res) =>
-        log.info(s"get result with $res")
-        val contentType = res.headers.find(_.name == `Content-Type`.name) match {
-          case Some(`Content-Type`(ContentType(`image/gif`, _))) => Some("gif")
-          case Some(`Content-Type`(ContentType(`image/jpeg`, _))) => Some("jpeg")
-          case Some(`Content-Type`(ContentType(`image/png`, _))) => Some("png")
-          case Some(`Content-Type`(ContentType(`image/x-ms-bmp`, _))) => Some("bmp")
-          case _ => None
-        }
-        contentType.foreach { ct =>
-          log.info(s"recovered content $ct")
-          val data = res.entity.data.toByteArray
-          val tmpFile = JFile.createTempFile(Random.alphanumeric.take(10).mkString("boobs", "", ""), s".$ct")
-          val stream = new FileOutputStream(tmpFile)
-          stream.write(data)
-          stream.flush()
-          stream.close()
-          val hash = calculateMD5(tmpFile)
-          FilesDao.byHash(hash) match {
-            case Some(previous) =>
-              bot ! SendMessage(user.chatId, "This image is already in DataBase")
+    FetchAndCalculateHash(link).map { case (hash, tmpFile) =>
+      FilesDao.byHash(hash) match {
+        case Some(previous) =>
+          bot ! SendMessage(user.chatId, "This image is already in DataBase")
+          tmpFile.delete()
+        case None =>
+          bot ! SendMapped(SendDocument(user.chatId, Left(tmpFile)), {
+            case Response(true, Left(id), _) =>
+              log.info(s"received $id, I know what it is")
               tmpFile.delete()
-            case None =>
-              bot ! SendMapped(SendDocument(user.chatId, Left(tmpFile)), {
-                case Response(true, Left(id), _) =>
-                  log.info(s"received $id, I know what it is")
-                  tmpFile.delete()
-                case Response(true, Right(m: Message), _) if m.document.isDefined =>
-                  log.info(s"catched new boobs file ${m.document.get.file_id}")
-                  doSthWithNewFile(user, bot, Files(m.document.get.file_id, Files.document, hash, Some(user.uber)), publish)
-                  tmpFile.delete()
-                case another =>
-                  log.warning(s"don't know what is this $another")
-                  tmpFile.delete()
-              })
-          }
-        }
-        contentType.getOrElse {
-          bot ! SendMessage(user.chatId, s"Can't recognize file, only accept image/gif, current is $contentType")
-        }
-      case Failure(t) =>
-        t.printStackTrace()
+            case Response(true, Right(m: Message), _) if m.document.isDefined =>
+              log.info(s"catched new boobs file ${m.document.get.file_id}")
+              doSthWithNewFile(user, bot, Boobs(m.document.get.file_id, Boobs.document, hash, Some(user.uber)), publish)
+              tmpFile.delete()
+            case another =>
+              log.warning(s"don't know what is this $another")
+              tmpFile.delete()
+          })
+      }
     }
+  }.recover {
+    case UnsupportedBoobsContent(other) =>
+      bot ! SendMessage(user.chatId, s"Can't recognize file, only accept image/gif, current is ${other.value}")
+    case NoContentInformation =>
+      bot ! SendMessage(user.chatId, s"Can't recognize file, service doesn't provide content type... WTF!?")
+    case t =>
+      t.printStackTrace()
   }
 
   def calculateMD5(f: Array[Byte]): String = {

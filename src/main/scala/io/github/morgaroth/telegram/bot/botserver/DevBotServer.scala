@@ -4,7 +4,7 @@ import java.io.File
 
 import akka.actor.Props
 import com.typesafe.config.ConfigFactory
-import io.github.morgaroth.telegram.bot.bots.{NTDBot, CyckoBot, ForwarderBot, TestKeyboardBot}
+import io.github.morgaroth.telegram.bot.bots.{NTDBot, ForwarderBot, TestKeyboardBot}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 

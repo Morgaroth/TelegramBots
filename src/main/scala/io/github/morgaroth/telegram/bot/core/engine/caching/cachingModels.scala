@@ -7,7 +7,7 @@ import com.novus.salat.annotations._
 import com.novus.salat.global.ctx
 import com.typesafe.config.Config
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
-import io.github.morgaroth.utils.mongodb.salat.MongoDAOStringKey
+import io.github.morgaroth.utils.mongodb.salat.MongoDAO
 import org.joda.time.DateTime
 
 /**
@@ -21,7 +21,7 @@ trait NewUpdateDBBaseDao {
 
   import net.ceedubs.ficus.Ficus._
 
-  val dao = new MongoDAOStringKey[NewUpdateDB](cfg, cfg.as[Option[String]]("name").getOrElse("updates")) {}
+  val dao = new MongoDAO[NewUpdateDB](cfg, cfg.as[Option[String]]("name").getOrElse("updates")) {}
 
   def cfg: Config
 

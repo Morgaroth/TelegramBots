@@ -1,3 +1,4 @@
+/lydia.md
 /src/main/resources/bots.conf
 ### SBT template
 # Simple Build Tool
@@ -26,6 +27,7 @@ project/boot/
 # Sensitive or high-churn files:
 # .idea/dataSources.ids
 # .idea/dataSources.xml
+/src/main/scala/io/github/morgaroth/telegram/bot/bots/boobsbot/TumblrKeys.scala
 # .idea/sqlDataSources.xml
 # .idea/dynamic.xml
 # .idea/uiDesigner.xml

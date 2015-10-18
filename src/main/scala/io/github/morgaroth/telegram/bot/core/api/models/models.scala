@@ -226,7 +226,7 @@ object ForceReply {
                        username: Option[String]
                        ) {
   def getAnyUserName = {
-    username.getOrElse {
+    username.map(nick => s"@$nick").getOrElse {
       last_name.map(x => s"$first_name $x").getOrElse(first_name)
     }
   }
