@@ -6,7 +6,7 @@ import sbtassembly.AssemblyPlugin.autoImport._
 
 name := "TelegramBots"
 
-version := "2.4"
+version := "2.5"
 
 scalaVersion := "2.11.7"
 
@@ -43,7 +43,7 @@ libraryDependencies ++= Seq(
   Ficus.Config.`1.1.2`,
   Morgaroth.UtilsMongo.`2.0.0` withSources(),
   Pathikrit.BetterFiles.`2.6.1`,
-  "com.tumblr" % "jumblr" % "0.0.11"
+  Tumblr.Jumblr.`0.0.11`
 )
 
 addCompilerPlugin(Paradise.`2.1.0-M5`)
