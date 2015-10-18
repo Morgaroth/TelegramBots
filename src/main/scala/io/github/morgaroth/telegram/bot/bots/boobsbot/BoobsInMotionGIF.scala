@@ -4,15 +4,19 @@ import akka.actor.ActorSystem
 import akka.event.{LoggingAdapter, Logging}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl._
+import com.mongodb.MongoCredential
+import com.mongodb.casbah.Imports
 import com.mongodb.casbah.commons.MongoDBObject
 import com.novus.salat.global.ctx
 import com.tumblr.jumblr.JumblrClient
 import com.tumblr.jumblr.types.{PhotoPost, Post}
 import com.typesafe.config.{Config, ConfigFactory}
+import io.github.morgaroth.telegram.bot.bots.boobsbot.FetchAndCalculateHash.{UnsupportedBoobsContent, NoContentInformation}
 import io.github.morgaroth.utils.mongodb.salat._
 import org.bson.types.ObjectId
 import org.joda.time.format.DateTimeFormat
 import org.joda.time.{DateTime, DateTimeZone}
+import spray.httpx.unmarshalling.UnsupportedContentType
 
 import scala.collection.JavaConverters._
 import scala.concurrent.Await
@@ -65,6 +69,15 @@ trait BoobsInMotionGIFDao {
       .headOption
       .map(_.postTime)
       .getOrElse(DateTime.now.withMillis(0))
+
+  def oneWaiting = dao.findOne(MongoDBObject("accepted" -> BoobsInMotionGIF.WAITING))
+
+  def updateStatus(id: ObjectId, status: String): Option[BoobsInMotionGIF] = {
+    dao.update(MongoDBObject("_id" -> id), MongoDBObject("$set" -> MongoDBObject("accepted" -> status)))
+    dao.findOneById(id)
+  }
+
+  def updateStatus(id: String, status: String): Option[BoobsInMotionGIF] = updateStatus(new ObjectId(id), status)
 }
 
 /**
@@ -109,7 +122,7 @@ object LinksFromTumblrFetch extends TumblrKeys {
 
       override def hasNext: Boolean = {
         val r = current < end && (current * 20 < allPosts) && !ifStop
-        println(s"has next = $r (current $current, end $end, current*10 ${current*20}, all $allPosts, ifStop $ifStop)")
+        println(s"has next = $r (current $current, end $end, current*10 ${current * 20}, all $allPosts, ifStop $ifStop)")
         r
       }
 
@@ -139,7 +152,17 @@ object LinksFromTumblrFetch extends TumblrKeys {
         )
       )
       .filter(dao.notContainslink)
-      .mapAsync(10)(x => FetchAndCalculateHash(x.link).map(hashAndFile => x.copy(hash = hashAndFile._1)))
+      .mapAsync(10)(x =>
+        FetchAndCalculateHash(x.link).map(hashAndFile => Some(x.copy(hash = hashAndFile._1))).recover {
+          case UnsupportedBoobsContent(ct) =>
+            log.warning(s"file ${x.link} has unsupported content type $ct")
+            None
+          case NoContentInformation =>
+            log.warning(s"file ${x.link} has no content type information")
+            None
+        }
+      )
+      .mapConcat(x => x.toList)
       .filter(fileMayBeNew)
       .runForeach { x =>
         println(x)

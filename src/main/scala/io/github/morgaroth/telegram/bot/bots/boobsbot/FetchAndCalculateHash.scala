@@ -30,7 +30,7 @@ object FetchAndCalculateHash {
     import as.dispatcher
     implicit val tm: Timeout = 2.minutes
     val pipe = sendReceive
-    val r = pipe(Get(link)).flatMap { res =>
+    pipe(Get(link)).flatMap { res =>
       val contentType = res.headers.find(_.name == `Content-Type`.name) match {
         case Some(`Content-Type`(ContentType(`image/gif`, _))) => Future.successful("gif")
         case Some(`Content-Type`(ContentType(`image/jpeg`, _))) => Future.successful("jpeg")
@@ -51,11 +51,6 @@ object FetchAndCalculateHash {
         (hash, tmpFile)
       }
     }
-    r.onFailure {
-      case t =>
-        t.printStackTrace()
-    }
-    r
   }
 
   def calculateMD5(f: Array[Byte]): String = {

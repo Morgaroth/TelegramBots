@@ -19,10 +19,13 @@ import io.github.morgaroth.telegram.bot.core.api.models.extractors.{MultiArgComm
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
 import io.github.morgaroth.utils.mongodb.salat.MongoDAO
+import org.bson.types.ObjectId
 import org.joda.time.DateTime
+import formats._
 
+import scala.annotation.tailrec
 import scala.language.reflectiveCalls
-import scala.util.{Failure, Success, Try}
+import scala.util.{Random, Failure, Success, Try}
 
 case class BoobsListener(@Key("_id") id: String, chatId: Int, created: DateTime = DateTime.now())
 
@@ -57,7 +60,20 @@ class CyckoBot extends Actor with ActorLogging {
   val SubsDao = new BoobsListenerDao {
     override def config = ConfigFactory.parseString( """uri = "mongodb://localhost/CyckoBot" """)
   }
+  val WaitingLinks = new BoobsInMotionGIFDao {
+    override def dbConfig: Config = ConfigFactory.parseString( """uri = "mongodb://localhost/TumblrLinks" """)
+  }
 
+  val questions = scala.collection.mutable.Map.empty[String, (ObjectId, String)]
+
+  @tailrec
+  private def firstEmpty: String = {
+    Random.alphanumeric.take(4).mkString match {
+      case valid if !questions.contains(valid) => valid
+      case _ => firstEmpty
+    }
+
+  }
 
   override def receive: Receive = {
     case SingleArgCommand("resolve", arg, (chat, _, _)) =>
@@ -80,13 +96,65 @@ class CyckoBot extends Actor with ActorLogging {
         sender() ! SendBoobsCorrectType(ch.chatId, f)
       )
 
+    case MultiArgCommand("grade", args, (ch, user, _)) if user.id == 36792931 =>
+      if (args.nonEmpty) {
+        args match {
+          case "YES" :: key :: Nil =>
+            val (fileId, telegram_f_id) = questions(key)
+            questions -= key
+            val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
+            doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = false)
+          case "PUBLISH" :: key :: Nil =>
+            val (fileId, telegram_f_id) = questions(key)
+            questions -= key
+            val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
+            doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = true)
+          case "NO" :: key :: Nil =>
+            val (fileId, _) = questions(key)
+            questions -= key
+            WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED)
+            sender() ! SendMessage(ch.chatId, s"disaggree $fileId")
+          case _ => sender() ! SendMessage(ch.chatId, s"Don't understand $args")
+        }
+      }
+      val toMaybe = WaitingLinks.oneWaiting
+      toMaybe.map { to =>
+        val req = sender()
+        FetchAndCalculateHash(to.link).map { case (_, file) =>
+          req ! SendMapped(SendDocument(ch.chatId, Left(file)), {
+            case Response(true, Left(id), _) =>
+              log.info(s"received $id, I know what it is")
+              file.delete()
+            case Response(true, Right(m: Message), _) if m.document.isDefined =>
+              val telegram_file_id = m.document.get.file_id
+              log.info(s"catched new boobs file $telegram_file_id")
+              val key = firstEmpty
+              questions += key ->(to._id.get, telegram_file_id)
+              req ! SendMessage(ch.chatId, "Grade, /stopgrade if end.", reply_markup = ReplyKeyboardMarkup.once(
+                List(List(
+                  s"/grade YES $key",
+                  s"/grade NO $key",
+                  s"/grade PUBLISH $key"
+                )))
+              )
+              file.delete()
+            case another =>
+              log.warning(s"don't know what is this $another")
+              file.delete()
+          })
+        }
+      }.getOrElse {
+        sender() ! SendMessage(ch.chatId, "No waiting links")
+      }
+
+    case NoArgCommand("stopgrade", (ch, _, _)) =>
+      sender() ! SendMessage(ch.chatId, "OK, end", reply_markup = ReplyKeyboardHide())
+
     case MultiArgCommand("updatedb", args, (ch, user, _)) if user.id == 36792931 =>
       val sen = sender()
       Try {
         val f = args.map(_.toInt) match {
-          case from :: to :: Nil =>
-            println(s"from $from to $to")
-            LinksFromTumblrFetch.runAsync("boobsinmotion", from, Some(to))
+          case from :: to :: Nil => LinksFromTumblrFetch.runAsync("boobsinmotion", from, Some(to))
           case from :: Nil => LinksFromTumblrFetch.runAsync("boobsinmotion", from)
           case Nil => LinksFromTumblrFetch.runAsync("boobsinmotion", 0)
         }
@@ -102,6 +170,7 @@ class CyckoBot extends Actor with ActorLogging {
           sen ! SendMessage(ch.chatId, s"parsing arguments for command fetching blog end with error ${t.getMessage}")
           log.error(t, "parsing arguments")
       }
+
 
     case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined =>
       val g = m.text.get
