@@ -113,7 +113,7 @@ class CyckoBot extends Actor with ActorLogging {
             val (fileId, _) = questions(key)
             questions -= key
             WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED)
-            sender() ! SendMessage(ch.chatId, s"disaggree $fileId")
+            sender() ! SendMessage(ch.chatId, s"Rejected")
           case _ => sender() ! SendMessage(ch.chatId, s"Don't understand $args")
         }
       }
@@ -148,6 +148,7 @@ class CyckoBot extends Actor with ActorLogging {
       }
 
     case NoArgCommand("stopgrade", (ch, _, _)) =>
+      questions.clear()
       sender() ! SendMessage(ch.chatId, "OK, end", reply_markup = ReplyKeyboardHide())
 
     case MultiArgCommand("updatedb", args, (ch, user, _)) if user.id == 36792931 =>
