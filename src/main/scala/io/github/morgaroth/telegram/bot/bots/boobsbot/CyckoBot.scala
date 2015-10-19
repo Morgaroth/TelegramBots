@@ -159,8 +159,8 @@ class CyckoBot extends Actor with ActorLogging {
           case Nil => LinksFromTumblrFetch.runAsync("boobsinmotion", 0)
         }
         f.onComplete {
-          case Success(_) =>
-            sen ! SendMessage(ch.chatId, s"fetching BoobsinMotion blog with args $args end with success")
+          case Success(inserted) =>
+            sen ! SendMessage(ch.chatId, s"fetching BoobsinMotion blog with args $args end with $inserted new links")
           case Failure(t) =>
             sen ! SendMessage(ch.chatId, s"fetching BoobsinMotion blog with args $args end with error: ${t.getMessage}")
             log.error(t, "fetching images")
