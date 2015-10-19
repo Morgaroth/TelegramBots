@@ -100,6 +100,13 @@ val spray =
   """.stripMargin
 
 
+val debug =
+  """
+    |-dontoptimize
+    |#-dontobfuscate
+    |-keepattributes SourceFile,LineNumberTable
+  """.stripMargin
+
 val modificators =
   """
     |-verbose
@@ -110,6 +117,29 @@ val modificators =
     |-ignorewarnings
     |-optimizations !code/allocation/variable
     | """.stripMargin
+
+val tumblr =
+  """
+    |-keepclasseswithmembers class com.tumblr.jumblr.types.Photo$PhotoType { *; }
+    |-keepclasseswithmembers class com.tumblr.jumblr.responses.ResponseWrapper { 
+    |  com.google.gson.JsonElement response;
+    |}
+    |-keepclasseswithmembers class com.tumblr.jumblr.types.Photo {
+    |  private <fields>;
+    | }
+    |-keepclasseswithmembers class com.tumblr.jumblr.types.PhotoPost {
+    |  private <fields>;
+    |}
+    |-keepclasseswithmembers class com.tumblr.jumblr.types.PhotoSize {
+    | private <fields>;
+    |}
+    |-keepclasseswithmembers class com.tumblr.jumblr.types.Blog {
+    |  private <fields>;
+    |}
+    |-keepclasseswithmembers class com.tumblr.jumblr.types.Post {
+    | private <fields>;
+    |}
+  """.stripMargin
 
 val program =
   """
@@ -136,6 +166,8 @@ ProguardKeys.options in Proguard ++= Seq(
   //  keepMain("io.github.morgaroth.telegram.bot.botserver.DevBotServer"),
   spray,
   program,
+  tumblr,
+//  debug,
   modificators,
   akka,
   mongoProguard

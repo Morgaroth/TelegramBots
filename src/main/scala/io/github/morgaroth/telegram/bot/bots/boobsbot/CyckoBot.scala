@@ -68,7 +68,7 @@ class CyckoBot extends Actor with ActorLogging {
 
   @tailrec
   private def firstEmpty: String = {
-    Random.alphanumeric.take(4).mkString match {
+    Random.alphanumeric.take(2).mkString match {
       case valid if !questions.contains(valid) => valid
       case _ => firstEmpty
     }
@@ -133,8 +133,8 @@ class CyckoBot extends Actor with ActorLogging {
               req ! SendMessage(ch.chatId, "Grade, /stopgrade if end.", reply_markup = ReplyKeyboardMarkup.once(
                 List(List(
                   s"/grade YES $key",
-                  s"/grade NO $key",
-                  s"/grade PUBLISH $key"
+                  s"/grade PUBLISH $key",
+                  s"/grade NO $key"
                 )))
               )
               file.delete()
@@ -171,12 +171,33 @@ class CyckoBot extends Actor with ActorLogging {
           log.error(t, "parsing arguments")
       }
 
+    case NoArgCommand("start", (ch, _, _)) =>
+      sendHelp(ch.chatId)
+
+    case NoArgCommand("subscribe", (ch, _, _)) =>
+      val response = Try {
+        SubsDao.dao.insert(BoobsListener(ch.chatId.toString, ch.chatId))
+        "This chat is subscribed!"
+      }.recover {
+        case e: DuplicateKey => "This chat is already subscribed"
+        case anot => s"Another error ${anot.getMessage}"
+      }.get
+      sender() ! SendMessage(ch.chatId, response)
+
+    case NoArgCommand("random", (ch, _, _)) =>
+      FilesDao.random(1).foreach(fId =>
+        sender() ! SendBoobsCorrectType(ch.chatId, fId)
+      )
+
+    case NoArgCommand("unsubscribe", (ch, _, _)) =>
+      val wr = SubsDao.dao.remove(MongoDBObject("chatId" -> ch.chatId))
+      val response = if (wr.getN == 0) "Unsubscribed (newer was)" else "Unsubscribed :("
+      sender() ! SendMessage(ch.chatId, response)
+
 
     case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined =>
       val g = m.text.get
       g.stripPrefix("/") match {
-        case start if start.startsWith("start") =>
-          sendHelp(m.chatId)
         case getImages if getImages.startsWith("get") =>
           val numberStr = getImages.stripPrefix("get").dropWhile(_ == " ").takeWhile(_ != " ")
           log.info(s"parsed number $numberStr")
@@ -184,26 +205,6 @@ class CyckoBot extends Actor with ActorLogging {
           FilesDao.random(count).foreach(fId =>
             sender() ! SendBoobsCorrectType(m.chatId, fId)
           )
-
-        case getRandom if getRandom.startsWith("random") =>
-          FilesDao.random(1).foreach(fId =>
-            sender() ! SendBoobsCorrectType(m.chatId, fId)
-          )
-        case subscribe if subscribe.startsWith("subscribe") =>
-          val response = Try {
-            SubsDao.dao.insert(BoobsListener(m.chatId.toString, m.chatId))
-            "This chat is subscribed!"
-          }.recover {
-            case e: DuplicateKey => "This chat is already subscribed"
-            case anot => s"Another error ${anot.getMessage}"
-          }.get
-          sender() ! SendMessage(m.chatId, response)
-
-        case subscribe if subscribe.startsWith("unsubscribe") =>
-          val wr = SubsDao.dao.remove(MongoDBObject("chatId" -> m.chatId))
-          val response = if (wr.getN == 0) "Unsubscribed (newer was)" else "Unsubscribed :("
-          sender() ! SendMessage(m.chatId, response)
-
         case delete if delete.startsWith("delete") =>
           if (m.reply_to_message.isDefined) {
             if (m.reply_to_message.get.document.isDefined) {

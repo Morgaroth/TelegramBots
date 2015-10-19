@@ -109,7 +109,9 @@ object LinksFromTumblrFetch extends TumblrKeys {
     val b = new Iterator[List[Post]] {
       var current = pageStart
 
-      val allPosts = tumblrClient.blogInfo(s"$blog.tumblr.com").getPostCount.intValue()
+      val info = tumblrClient.blogInfo(s"$blog.tumblr.com")
+      val count1 = info.getPostCount
+      val allPosts = count1.intValue()
 
       def blogPosts = tumblrClient.blogPosts(s"$blog.tumblr.com", Map("limit" -> 20, "offset" -> current * 20).asJava)
 
