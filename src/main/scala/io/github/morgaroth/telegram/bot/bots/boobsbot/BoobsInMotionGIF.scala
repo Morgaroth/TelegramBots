@@ -4,7 +4,8 @@ import akka.actor.ActorSystem
 import akka.event.{LoggingAdapter, Logging}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl._
-import com.mongodb.MongoCredential
+import com.mongodb.MongoException.DuplicateKey
+import com.mongodb.{WriteResult, MongoCredential}
 import com.mongodb.casbah.Imports
 import com.mongodb.casbah.commons.MongoDBObject
 import com.novus.salat.global.ctx
@@ -21,6 +22,7 @@ import spray.httpx.unmarshalling.UnsupportedContentType
 import scala.collection.JavaConverters._
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.util.Try
 
 
 /**
@@ -145,6 +147,18 @@ object LinksFromTumblrFetch extends TumblrKeys {
       !boobsDao.contains(t.hash)
     }
 
+    def saveBoobsLink(x: BoobsInMotionGIF): Either[Option[BoobsInMotionGIF], String] = {
+      Try {
+        val wr: Imports.WriteResult = dao.dao.save(x)
+        Try(wr.getUpsertedId.asInstanceOf[ObjectId]).toOption.map(dao.dao.findOneById).map(Left(_)).getOrElse(Right(wr.toString))
+      }.recover {
+        case t: DuplicateKey =>
+          Right("duplicated hash, loooz")
+        case t: Throwable =>
+          Right(s"error ${t.getMessage}")
+      }.get
+    }
+
     val r = Source(() => b).mapConcat(x => x)
       .filter(_.getType == "photo")
       .map(_.asInstanceOf[PhotoPost])
@@ -166,9 +180,11 @@ object LinksFromTumblrFetch extends TumblrKeys {
       )
       .mapConcat(x => x.toList)
       .filter(fileMayBeNew)
-      .runForeach { x =>
-        println(x)
-        dao.dao.save(x)
+      .map(saveBoobsLink)
+      .runFold(0) {
+        case (acc, x) =>
+          println(x)
+          acc + x.fold(_.map(_ => 1).getOrElse(0), _ => 0)
       }
     r
   }
