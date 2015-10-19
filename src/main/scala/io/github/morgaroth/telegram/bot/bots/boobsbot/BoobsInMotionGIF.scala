@@ -147,10 +147,10 @@ object LinksFromTumblrFetch extends TumblrKeys {
       !boobsDao.contains(t.hash)
     }
 
-    def saveBoobsLink(x: BoobsInMotionGIF): Either[Option[BoobsInMotionGIF], String] = {
+    def saveBoobsLink(x: BoobsInMotionGIF): Either[BoobsInMotionGIF, String] = {
       Try {
-        val wr: Imports.WriteResult = dao.dao.save(x)
-        Try(wr.getUpsertedId.asInstanceOf[ObjectId]).toOption.map(dao.dao.findOneById).map(Left(_)).getOrElse(Right(wr.toString))
+        val wr = dao.dao.insert(x)
+        wr.map(dao.dao.findOneById).map(_.map(Left(_)).getOrElse(Right("not found after insert"))).getOrElse(Right("not inserted"))
       }.recover {
         case t: DuplicateKey =>
           Right("duplicated hash, loooz")
@@ -184,7 +184,7 @@ object LinksFromTumblrFetch extends TumblrKeys {
       .runFold(0) {
         case (acc, x) =>
           println(x)
-          acc + x.fold(_.map(_ => 1).getOrElse(0), _ => 0)
+          acc + x.fold(_ => 1, _ => 0)
       }
     r
   }
