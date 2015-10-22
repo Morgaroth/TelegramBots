@@ -11,7 +11,7 @@ import com.mongodb.casbah.commons.MongoDBObject
 import com.novus.salat.annotations.Key
 import com.novus.salat.global.ctx
 import com.typesafe.config.{Config, ConfigFactory}
-import io.github.morgaroth.telegram.bot.bots.boobsbot.CyckoBot.PublishBoobs
+import io.github.morgaroth.telegram.bot.bots.boobsbot.BoobsBot.PublishBoobs
 import io.github.morgaroth.telegram.bot.bots.boobsbot.FetchAndCalculateHash.{NoContentInformation, UnsupportedBoobsContent}
 import io.github.morgaroth.telegram.bot.core.api.methods.Response
 import io.github.morgaroth.telegram.bot.core.api.models._
@@ -37,15 +37,14 @@ trait BoobsListenerDao {
   lazy val dao = new MongoDAO[BoobsListener](config, collection.getOrElse("listeners")) {}
 }
 
-object CyckoBot {
+object BoobsBot {
 
-  private[CyckoBot] case class PublishBoobs(f: Boobs, owner: Chat, worker: Option[ActorRef] = None)
+  private[BoobsBot] case class PublishBoobs(content: Boobs, owner: Chat, worker: Option[ActorRef] = None)
 
-  def props() =
-    Props(classOf[CyckoBot])
+  def props(dbConfig:Config) = Props(classOf[BoobsBot],dbConfig)
 }
 
-class CyckoBot extends Actor with ActorLogging {
+class BoobsBot(dbConfig:Config) extends Actor with ActorLogging {
 
   import context.dispatcher
   import context.system
@@ -55,13 +54,13 @@ class CyckoBot extends Actor with ActorLogging {
   val hardSelf = self
 
   val FilesDao = new BoobsDao {
-    override def config = ConfigFactory.parseString( """uri = "mongodb://localhost/CyckoBot" """)
+    override def config = dbConfig
   }
   val SubsDao = new BoobsListenerDao {
-    override def config = ConfigFactory.parseString( """uri = "mongodb://localhost/CyckoBot" """)
+    override def config = dbConfig
   }
   val WaitingLinks = new BoobsInMotionGIFDao {
-    override def dbConfig: Config = ConfigFactory.parseString( """uri = "mongodb://localhost/TumblrLinks" """)
+    override def dbConfig: Config = dbConfig
   }
 
   val questions = scala.collection.mutable.Map.empty[String, (ObjectId, String)]

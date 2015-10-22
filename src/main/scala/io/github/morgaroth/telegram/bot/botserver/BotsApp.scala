@@ -55,13 +55,14 @@ case class PoolingSource() extends Source {
   def toUpdates = LongPool
 }
 
-case class BotSecret(
+case class BotConfig(
                       botName: String,
                       botToken: String,
                       ramCache: Option[RAMCacheCfg],
                       dbCache: Option[DbCacheCfg],
                       webhook: Option[WebHookSource],
-                      pooling: Option[PoolingSource]
+                      pooling: Option[PoolingSource],
+                      more: Option[Config]
                       ) {
   def validate() = {
     if (ramCache.isDefined && dbCache.isDefined) {
@@ -71,6 +72,8 @@ case class BotSecret(
       throw new ConfigException(s"for bot $botName both webHookUpdates and poolingUpdates fields are defined, don't know which choose") {}
     }
   }
+
+  def additional = more.getOrElse(ConfigFactory.empty())
 
   def cache = ramCache orElse dbCache getOrElse NoCacheCfg
 
@@ -96,13 +99,13 @@ trait BotsApp {
 
   lazy val botMother = as.actorOf(BotMother.props(whConfig))
 
-  def startBots(botsToStart: List[(BotSecret, Props)]): Unit = {
+  def startBots(botsToStart: List[(BotConfig, Props)]): Unit = {
     botsToStart.foreach {
       case (c, props) => startBot(c, props)
     }
   }
 
-  def startBot(c: BotSecret, botProps: Props): Unit = {
+  def startBot(c: BotConfig, botProps: Props): Unit = {
     val ref = as.actorOf(botProps, s"${c.botName}")
     botMother.tell(RegisterBot(BotSettings(c.botName, c.botToken, c.cache.toCacheType, c.updates.toUpdates)), ref)
   }

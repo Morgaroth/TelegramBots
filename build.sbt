@@ -2,11 +2,12 @@ import com.typesafe.sbt.SbtProguard.ProguardOptions.keepMain
 import com.typesafe.sbt.SbtProguard._
 import com.typesafe.sbt.SbtProguard.ProguardKeys.{options => proguardOptions, proguard}
 import com.typesafe.sbt.SbtProguard.ProguardSettings._
+import sbt.inc.Analysis
 import sbtassembly.AssemblyPlugin.autoImport._
 
 name := "TelegramBots"
 
-version := "2.7"
+version := "2.8"
 
 scalaVersion := "2.11.7"
 
@@ -61,6 +62,7 @@ val akka =
     |-keep class spray.can.HttpExt { <init>(...); }
     |-keep class akka.routing.RoutedActorCell$RouterActorCreator { <init>(...); }
     |-keep class akka.io.TcpOutgoingConnection { <init>(...); }
+    |-keep class akka.io.TcpIncomingConnection { <init>(...); }
     |-keep class akka.io.TcpManager { <init>(...); }
     |-keep class akka.event.Logging$LogExt { <init>(...); }
     |-keep class akka.actor.LightArrayRevolverScheduler { <init>(...); }
@@ -167,7 +169,7 @@ ProguardKeys.options in Proguard ++= Seq(
   spray,
   program,
   tumblr,
-//  debug,
+  //  debug,
   modificators,
   akka,
   mongoProguard
@@ -193,3 +195,19 @@ ProguardKeys.inputFilter in Proguard := { file =>
     case _ => Some("!META-INF/**")
   }
 }
+//
+//
+//
+//compile in Compile <<= {
+//  (compile in Compile).map((a: Analysis) => {
+//    // do anything with a
+//    println(a)
+//    a
+//  })
+//}
+//  a.failure.map((b: Incomplete) => {
+//    println(b)
+//    b
+//  })
+//  a
+//}

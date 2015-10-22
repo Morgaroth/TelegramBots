@@ -7,7 +7,7 @@ import io.github.morgaroth.telegram.bot.core.api.models.extractors._
 /**
  * Created by mateusz on 26.09.15.
  */
-class ObiadoBot extends Actor with ActorLogging {
+class LunchBot extends Actor with ActorLogging {
 
   val hardSelf = self
 

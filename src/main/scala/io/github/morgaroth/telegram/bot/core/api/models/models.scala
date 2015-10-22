@@ -181,10 +181,10 @@ object Message {
                                       )
 
 object ReplyKeyboardMarkup {
-  def once(keyboard: List[List[String]], resize_keyboard: Boolean = false, selective: Boolean = false) =
+  def once(keyboard: List[List[String]], resize_keyboard: Boolean = true, selective: Boolean = false) =
     apply(keyboard, Option(resize_keyboard).filter(identity), Some(true), Option(selective).filter(identity))
 
-  def long(keyboard: List[List[String]], resize_keyboard: Boolean = false, selective: Boolean = false) =
+  def long(keyboard: List[List[String]], resize_keyboard: Boolean = true, selective: Boolean = false) =
     apply(keyboard, Option(resize_keyboard).filter(identity), Some(false), Option(selective).filter(identity))
 }
 
