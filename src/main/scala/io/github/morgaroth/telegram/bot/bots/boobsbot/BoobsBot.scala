@@ -8,59 +8,48 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.event.LoggingAdapter
 import com.mongodb.MongoException.DuplicateKey
 import com.mongodb.casbah.commons.MongoDBObject
-import com.novus.salat.annotations.Key
-import com.novus.salat.global.ctx
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.Config
 import io.github.morgaroth.telegram.bot.bots.boobsbot.BoobsBot.PublishBoobs
 import io.github.morgaroth.telegram.bot.bots.boobsbot.FetchAndCalculateHash.{NoContentInformation, UnsupportedBoobsContent}
 import io.github.morgaroth.telegram.bot.core.api.methods.Response
 import io.github.morgaroth.telegram.bot.core.api.models._
 import io.github.morgaroth.telegram.bot.core.api.models.extractors.{MultiArgCommand, NoArgCommand, SingleArgCommand}
+import io.github.morgaroth.telegram.bot.core.api.models.formats._
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
-import io.github.morgaroth.utils.mongodb.salat.MongoDAO
 import org.bson.types.ObjectId
-import org.joda.time.DateTime
-import formats._
 
 import scala.annotation.tailrec
 import scala.language.reflectiveCalls
-import scala.util.{Random, Failure, Success, Try}
+import scala.util.{Failure, Random, Success, Try}
 
-case class BoobsListener(@Key("_id") id: String, chatId: Int, created: DateTime = DateTime.now())
-
-trait BoobsListenerDao {
-  def config: Config
-
-  def collection: Option[String] = None
-
-  lazy val dao = new MongoDAO[BoobsListener](config, collection.getOrElse("listeners")) {}
-}
 
 object BoobsBot {
 
   private[BoobsBot] case class PublishBoobs(content: Boobs, owner: Chat, worker: Option[ActorRef] = None)
 
-  def props(dbConfig:Config) = Props(classOf[BoobsBot],dbConfig)
+  def props(dbCfg: Config) = Props(classOf[BoobsBot], dbCfg)
 }
 
-class BoobsBot(dbConfig:Config) extends Actor with ActorLogging {
+class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
 
-  import context.dispatcher
-  import context.system
+  import context.{dispatcher, system}
 
   implicit def implLog: LoggingAdapter = log
 
   val hardSelf = self
 
   val FilesDao = new BoobsDao {
-    override def config = dbConfig
+    override def config = dbCfg
   }
   val SubsDao = new BoobsListenerDao {
-    override def config = dbConfig
+    override def config = dbCfg
   }
-  val WaitingLinks = new BoobsInMotionGIFDao {
-    override def dbConfig: Config = dbConfig
+  val WaitingLinks = {
+    log.info(s"accessing waiting links $dbCfg")
+    new BoobsInMotionGIFDao {
+      override def dbConfig: Config = dbCfg
+    }
   }
 
   val questions = scala.collection.mutable.Map.empty[String, (ObjectId, String)]
@@ -96,55 +85,39 @@ class BoobsBot(dbConfig:Config) extends Actor with ActorLogging {
       )
 
     case MultiArgCommand("grade", args, (ch, user, _)) if user.id == 36792931 =>
+      sendBoobsToGrade(ch)
+
+    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") =>
+      val args = comm.split("_").toList.tail
+      log.info(s"received grade command with arg $args")
       if (args.nonEmpty) {
         args match {
           case "YES" :: key :: Nil =>
-            val (fileId, telegram_f_id) = questions(key)
-            questions -= key
-            val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
-            doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = false)
+            questions.get(key) match {
+              case Some((fileId, telegram_f_id)) =>
+                questions -= key
+                val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
+                doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = false)
+              case _ =>
+            }
           case "PUBLISH" :: key :: Nil =>
-            val (fileId, telegram_f_id) = questions(key)
-            questions -= key
-            val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
-            doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = true)
+            questions.get(key) match {
+              case Some((fileId, telegram_f_id)) =>
+                val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
+                doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = true)
+              case _ =>
+            }
           case "NO" :: key :: Nil =>
-            val (fileId, _) = questions(key)
-            questions -= key
-            WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED)
-            sender() ! SendMessage(ch.chatId, s"Rejected")
+            questions.get(key) match {
+              case Some((fileId, telegram_f_id)) =>
+                questions -= key
+                WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED)
+              case _ =>
+            }
           case _ => sender() ! SendMessage(ch.chatId, s"Don't understand $args")
         }
       }
-      val toMaybe = WaitingLinks.oneWaiting
-      toMaybe.map { to =>
-        val req = sender()
-        FetchAndCalculateHash(to.link).map { case (_, file) =>
-          req ! SendMapped(SendDocument(ch.chatId, Left(file)), {
-            case Response(true, Left(id), _) =>
-              log.info(s"received $id, I know what it is")
-              file.delete()
-            case Response(true, Right(m: Message), _) if m.document.isDefined =>
-              val telegram_file_id = m.document.get.file_id
-              log.info(s"catched new boobs file $telegram_file_id")
-              val key = firstEmpty
-              questions += key ->(to._id.get, telegram_file_id)
-              req ! SendMessage(ch.chatId, "Grade, /stopgrade if end.", reply_markup = ReplyKeyboardMarkup.once(
-                List(List(
-                  s"/grade YES $key",
-                  s"/grade PUBLISH $key",
-                  s"/grade NO $key"
-                )))
-              )
-              file.delete()
-            case another =>
-              log.warning(s"don't know what is this $another")
-              file.delete()
-          })
-        }
-      }.getOrElse {
-        sender() ! SendMessage(ch.chatId, "No waiting links")
-      }
+      sendBoobsToGrade(ch)
 
     case NoArgCommand("stopgrade", (ch, _, _)) =>
       questions.clear()
@@ -308,6 +281,33 @@ class BoobsBot(dbConfig:Config) extends Actor with ActorLogging {
   }
 
 
+  def sendBoobsToGrade(ch: Chat): Unit = {
+    val toMaybe = WaitingLinks.oneWaiting
+    log.info(s"next image will be $toMaybe")
+    toMaybe.map { to =>
+      val req = sender()
+      FetchAndCalculateHash(to.link).map { case (_, file) =>
+        req ! SendMapped(SendDocument(ch.chatId, Left(file)), {
+          case Response(true, Left(id), _) =>
+            log.info(s"received $id, I know what it is")
+            file.delete()
+          case Response(true, Right(m: Message), _) if m.document.isDefined =>
+            val telegram_file_id = m.document.get.file_id
+            log.info(s"catched new boobs file $telegram_file_id")
+            val key = firstEmpty
+            questions += key ->(to._id.get, telegram_file_id)
+            req ! SendMessage(ch.chatId, s"Grade, /grade_YES_$key /grade_PUBLISH_$key /grade_NO_$key\n/stopgrade if end.", reply_to_message_id = Some(m.message_id))
+            file.delete()
+          case another =>
+            log.warning(s"don't know what is this $another")
+            file.delete()
+        })
+      }
+    }.getOrElse {
+      sender() ! SendMessage(ch.chatId, "No waiting links")
+    }
+  }
+
   def sendHelp(chatId: Int): Unit = {
     val text =
       """
@@ -385,4 +385,6 @@ class BoobsBot(dbConfig:Config) extends Actor with ActorLogging {
     import better.files.{File => BFile}
     md5(BFile(f.getAbsolutePath))
   }
+
+  log.info("BoobsBot STARTED!")
 }

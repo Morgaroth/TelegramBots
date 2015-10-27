@@ -55,6 +55,7 @@ trait BoobsInMotionGIFDao {
   lazy val dao = {
     val d = new MongoDAOObjectIdKey[BoobsInMotionGIF](dbConfig, "BoobsLinks") with JodaSupport
     d.collection.ensureIndex(MongoDBObject("hash" -> 1), "hash_idx", unique = true)
+    d.collection.ensureIndex(MongoDBObject("accepted" -> 1), "status_idx")
     d
   }
 
@@ -73,6 +74,8 @@ trait BoobsInMotionGIFDao {
       .getOrElse(DateTime.now.withMillis(0))
 
   def oneWaiting = dao.findOne(MongoDBObject("accepted" -> BoobsInMotionGIF.WAITING))
+
+  def nWaiting(n: Int) = dao.find(MongoDBObject("accepted" -> BoobsInMotionGIF.WAITING)).limit(n).toList
 
   def updateStatus(id: ObjectId, status: String): Option[BoobsInMotionGIF] = {
     dao.update(MongoDBObject("_id" -> id), MongoDBObject("$set" -> MongoDBObject("accepted" -> status)))

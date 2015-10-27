@@ -23,6 +23,7 @@ object WebHookManager {
   def props(settings: WebHookSettings) = Props(classOf[WebHookManager], settings)
 
   private[WebHookManager] case class BotDef(bot: ActorRef, botToken: String)
+
 }
 
 class WebHookManager(settings: WebHookSettings) extends Actor with ActorLogging {
@@ -56,7 +57,8 @@ class WebHookManager(settings: WebHookSettings) extends Actor with ActorLogging 
       registered += botId -> BotDef(botActor, botToken)
       val s = sender()
       setWebHook(botId, botToken).onComplete {
-        case Success(Response(true, _, _)) => s ! Registered
+        case Success(Response(true, res, dsc)) => s ! Registered
+          log.info(s"registering for updates response: response: $res, dsc: $dsc")
         case Success(r@Response(false, _, _)) => s ! RegisteringFailed(Left(r))
         case Failure(t) => s ! RegisteringFailed(Right(t))
       }

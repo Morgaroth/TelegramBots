@@ -27,9 +27,9 @@ class WebHookService(webHookManager: ActorRef)(implicit actorSystem: ActorSystem
           extract(_.request.entity) { entity =>
             extract(_.request.headers) { headers =>
               // sould be managed by config
-              log.debug(s"request $reqId from bot $botId")
-              log.debug(s"request $reqId entity ${entity.asString.normalize}")
-              log.debug(s"request $reqId headers ${headers.mkString}")
+              log.info(s"request $reqId from bot $botId")
+              log.info(s"request $reqId entity ${entity.asString.normalize}")
+              log.info(s"request $reqId headers ${headers.mkString}")
               handleWith(handleUpdate(reqId, botId))
             }
           }
