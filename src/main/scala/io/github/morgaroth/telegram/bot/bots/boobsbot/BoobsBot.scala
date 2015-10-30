@@ -19,9 +19,8 @@ import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
 import org.bson.types.ObjectId
 
-import scala.annotation.tailrec
 import scala.language.reflectiveCalls
-import scala.util.{Failure, Random, Success, Try}
+import scala.util.{Failure, Success, Try}
 
 
 object BoobsBot {
@@ -98,6 +97,9 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
           doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = true)
         case (Some((fileId, telegram_f_id)), "NO") =>
           WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED)
+        case (a, b) =>
+          sender() ! SendMessage(ch.chatId, s"Sorry, I dont know $b with cache $a, but I have sth for You:")
+          sender() ! sendBoobs(1, ch.chatId)
       }
       questions -= ch.chatId
       sendBoobsToGrade(ch)
@@ -140,10 +142,8 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
       }.get
       sender() ! SendMessage(ch.chatId, response)
 
-    case NoArgCommand("random", (ch, _, _)) =>
-      FilesDao.random(1).foreach(fId =>
-        sender() ! SendBoobsCorrectType(ch.chatId, fId)
-      )
+    case NoArgCommand("boobs" | "make_me_happy" | "give_me_boobs", (ch, _, _)) =>
+      sendBoobs(1, ch.chatId)
 
     case NoArgCommand("unsubscribe", (ch, _, _)) =>
       val wr = SubsDao.dao.remove(MongoDBObject("chatId" -> ch.chatId))
@@ -154,13 +154,13 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
     case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined =>
       val g = m.text.get
       g.stripPrefix("/") match {
-        case getImages if getImages.startsWith("get") =>
-          val numberStr = getImages.stripPrefix("get").dropWhile(_ == " ").takeWhile(_ != " ")
-          log.info(s"parsed number $numberStr")
-          val count = Math.min(Try(numberStr.trim.toInt).toOption.getOrElse(1), 5)
-          FilesDao.random(count).foreach(fId =>
-            sender() ! SendBoobsCorrectType(m.chatId, fId)
-          )
+        //        case getImages if getImages.startsWith("get") =>
+        //          val numberStr = getImages.stripPrefix("get").dropWhile(_ == " ").takeWhile(_ != " ")
+        //          log.info(s"parsed number $numberStr")
+        //          val count = Math.min(Try(numberStr.trim.toInt).toOption.getOrElse(1), 5)
+        //          FilesDao.random(count).foreach(fId =>
+        //            sender() ! SendBoobsCorrectType(m.chatId, fId)
+        //          )
         case delete if delete.startsWith("delete") =>
           if (m.reply_to_message.isDefined) {
             if (m.reply_to_message.get.document.isDefined) {
@@ -183,7 +183,8 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
         case illegal if m.reply_to_message.isDefined =>
         // ignore, someone only commented Bot message
         case unknown =>
-          sender() ! SendMessage(m.chatId, s"Sorry, I dont know command $unknown.")
+          sender() ! SendMessage(m.chatId, s"Sorry, I dont know command $unknown, but I have sth for You:")
+          sender() ! sendBoobs(1, m.chatId)
       }
       sender() ! Handled(id)
 
@@ -263,6 +264,12 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
       }
   }
 
+  def sendBoobs(x: Int, ch: Int): Unit = {
+    FilesDao.random(x).foreach(fId =>
+      sender() ! SendBoobsCorrectType(ch, fId)
+    )
+  }
+
   def sendBoobsToGrade(ch: Chat): Unit = {
     val toMaybe = WaitingLinks.oneWaiting
     log.info(s"next image will be $toMaybe")
@@ -298,12 +305,12 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
         |You and Your camrades.
         |
         |Commands:
+        |boobs - Booooobs!
+        |give_me_boobs - Booooobs!
+        |make_me_happy - Booooobs!
         |resolve - downloads gif from http link to gif, publishes new file to all subscribers
         |add - like resolve, but without publishing
         |stats - prints some DB statistics
-        |get - returns random boobs
-        |get - with argument `get N` returns N random boobs from database, max is 5
-        |random - like get
         |subscribe - subscribes this chat to boobs news
         |unsubscribe - unsubscribes
         |delete - as reply to image - deletes boobs from DB
