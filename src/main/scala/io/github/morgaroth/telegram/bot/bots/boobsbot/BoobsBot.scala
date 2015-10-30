@@ -52,16 +52,15 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
     }
   }
 
-  val questions = scala.collection.mutable.Map.empty[String, (ObjectId, String)]
-
-  @tailrec
-  private def firstEmpty: String = {
-    Random.alphanumeric.take(2).mkString match {
-      case valid if !questions.contains(valid) => valid
-      case _ => firstEmpty
-    }
-
-  }
+  val questions = scala.collection.mutable.Map.empty[Int, (ObjectId, String)]
+  //
+  //  @tailrec
+  //  private def firstEmpty: String = {
+  //    Random.alphanumeric.take(2).mkString match {
+  //      case valid if !questions.contains(valid) => valid
+  //      case _ => firstEmpty
+  //    }
+  //  }
 
   override def receive: Receive = {
     case SingleArgCommand("resolve", arg, (chat, _, _)) =>
@@ -88,39 +87,23 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
       sendBoobsToGrade(ch)
 
     case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") =>
-      val args = comm.split("_").toList.tail
-      log.info(s"received grade command with arg $args")
-      if (args.nonEmpty) {
-        args match {
-          case "YES" :: key :: Nil =>
-            questions.get(key) match {
-              case Some((fileId, telegram_f_id)) =>
-                questions -= key
-                val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
-                doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = false)
-              case _ =>
-            }
-          case "PUBLISH" :: key :: Nil =>
-            questions.get(key) match {
-              case Some((fileId, telegram_f_id)) =>
-                val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
-                doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = true)
-              case _ =>
-            }
-          case "NO" :: key :: Nil =>
-            questions.get(key) match {
-              case Some((fileId, telegram_f_id)) =>
-                questions -= key
-                WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED)
-              case _ =>
-            }
-          case _ => sender() ! SendMessage(ch.chatId, s"Don't understand $args")
-        }
+      val arg = comm.split("_").toList.tail.head
+      log.info(s"received grade $arg command")
+      (questions.get(ch.chatId), arg) match {
+        case (Some((fileId, telegram_f_id)), "YES") =>
+          val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
+          doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = false)
+        case (Some((fileId, telegram_f_id)), "PUBLISH") =>
+          val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
+          doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = true)
+        case (Some((fileId, telegram_f_id)), "NO") =>
+          WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED)
       }
+      questions -= ch.chatId
       sendBoobsToGrade(ch)
 
     case NoArgCommand("stopgrade", (ch, _, _)) =>
-      questions.clear()
+      questions -= ch.chatId
       sender() ! SendMessage(ch.chatId, "OK, end", reply_markup = ReplyKeyboardHide())
 
     case MultiArgCommand("updatedb", args, (ch, user, _)) if user.id == 36792931 =>
@@ -280,7 +263,6 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
       }
   }
 
-
   def sendBoobsToGrade(ch: Chat): Unit = {
     val toMaybe = WaitingLinks.oneWaiting
     log.info(s"next image will be $toMaybe")
@@ -294,9 +276,8 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
           case Response(true, Right(m: Message), _) if m.document.isDefined =>
             val telegram_file_id = m.document.get.file_id
             log.info(s"catched new boobs file $telegram_file_id")
-            val key = firstEmpty
-            questions += key ->(to._id.get, telegram_file_id)
-            req ! SendMessage(ch.chatId, s"Grade, /grade_YES_$key /grade_PUBLISH_$key /grade_NO_$key\n/stopgrade if end.", reply_to_message_id = Some(m.message_id))
+            questions += ch.chatId ->(to._id.get, telegram_file_id)
+            req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n/stopgrade if end.", reply_to_message_id = Some(m.message_id))
             file.delete()
           case another =>
             log.warning(s"don't know what is this $another")
