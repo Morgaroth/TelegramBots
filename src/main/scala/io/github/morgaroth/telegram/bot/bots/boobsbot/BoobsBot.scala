@@ -331,16 +331,16 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
         |You and Your camrades.
         |
         |Commands:
-        |boobs - Booooobs!
-        |give_me_boobs - Booooobs!
-        |make_me_happy - Booooobs!
-        |resolve - downloads gif from http link to gif, publishes new file to all subscribers
-        |add - like resolve, but without publishing
-        |stats - prints some DB statistics
-        |subscribe - subscribes this chat to boobs news
-        |unsubscribe - unsubscribes
-        |delete - as reply to image - deletes boobs from DB
-        |help - returns this help
+        |/boobs - Booooobs!
+        |/give_me_boobs - Booooobs!
+        |/make_me_happy - Booooobs!
+        |/resolve - downloads gif from http link to gif, publishes new file to all subscribers
+        |/add - like resolve, but without publishing
+        |/stats - prints some DB statistics
+        |/subscribe - subscribes this chat to boobs news
+        |/unsubscribe - unsubscribes
+        |/delete - as reply to image - deletes boobs from DB
+        |/help - returns this help
       """.stripMargin
     sender() ! SendMessage(chatId, text, Some("Markdown"))
   }
