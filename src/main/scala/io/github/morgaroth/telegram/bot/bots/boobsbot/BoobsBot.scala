@@ -200,7 +200,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
         case None =>
           hardSender ! SendMapped(GetFile(biggest.file_id), {
             case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
-              hardSender ! FetchFile(f, Boobs.photo, u.message.chat)
+              hardSender ! FetchFile(f, data => hardSelf ! FileFetchingResult(f, u.message.chat, Boobs.photo, data))
               log.info(s"got file $fPath, downloading started")
             case other =>
               log.warning(s"got other response $other")
@@ -241,7 +241,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
             case None =>
               hardSender ! SendMapped(GetFile(doc.file_id), {
                 case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
-                  hardSender ! FetchFile(f, Boobs.document, u.message.chat)
+                  hardSender ! FetchFile(f, data => hardSelf ! FileFetchingResult(f, u.message.chat, Boobs.document, data))
                   log.info(s"got file $fPath, downloading started")
                 case other =>
                   log.warning(s"got other response $other")
@@ -283,6 +283,18 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
           case Response(true, Right(m: Message), _) if m.document.isDefined =>
             val telegram_file_id = m.document.get.file_id
             log.info(s"catched new boobs file $telegram_file_id")
+            req ! SendMapped(GetFile(telegram_file_id), {
+              case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
+                req ! FetchFile(f, data => {
+                  val h = calculateMD5(data.get)
+                  if (h != to.hash) {
+                    req ! SendMessage(ch.chatId, s"hashes aren't the same = $h ${to.hash}", reply_to_message_id = Some(m.message_id))
+                  }
+                })
+                log.info(s"got file $fPath, downloading started")
+              case other =>
+                log.warning(s"got other response $other")
+            })
             questions += ch.chatId ->(to._id.get, telegram_file_id)
             req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n/stopgrade if end.", reply_to_message_id = Some(m.message_id))
             file.delete()

@@ -28,7 +28,7 @@ object BotActor {
 
   case class SendMapped(response: Command, fun: PartialFunction[Any, Unit])
 
-  case class FetchFile(f: File, `type`: String, author: Chat)
+  case class FetchFile(f: File, onComplete:Try[Array[Byte]] => Unit)
 
   case class FileFetchingResult(file: File, author: Chat, `type`: String, result: Try[Array[Byte]])
 
@@ -116,10 +116,10 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
 
     case OK(id) =>
 
-    case FetchFile(fpath, t, author) =>
+    case FetchFile(fpath, callback) =>
       val hardSender = sender()
       fetchFile(fpath.file_path.get).onComplete {
-        case res => hardSender ! FileFetchingResult(fpath, author, t, res)
+        r => callback(r)
       }
 
     case unhandled =>
