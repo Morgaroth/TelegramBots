@@ -270,45 +270,52 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
     )
   }
 
-  def sendBoobsToGrade(ch: Chat): Unit = {
+  def sendBoobsToGrade(ch: Chat, respondTo: Option[ActorRef] = None): Unit = {
     val toMaybe = WaitingLinks.oneWaiting
     log.info(s"next image will be $toMaybe")
     toMaybe.map { to =>
-      val req = sender()
+      val req = respondTo.getOrElse(sender())
       log.info(s"using ${to.link}")
-      FetchAndCalculateHash(to.link).map { case (_, file) =>
-        req ! SendMapped(SendDocument(ch.chatId, Left(file)), {
-          case Response(true, Left(id), _) =>
-            log.info(s"received $id, I know what it is")
-            file.delete()
-          case Response(true, Right(m: Message), _) if m.document.isDefined =>
-            val telegram_file_id = m.document.get.file_id
-            log.info(s"catched new boobs file $telegram_file_id")
-            req ! SendMapped(GetFile(telegram_file_id), {
-              case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
-                req ! FetchFile(f, data => {
-                  val h = calculateMD5(data.get)
-                  if (FilesDao.byHash(h).isEmpty) {
-                    questions += ch.chatId ->(to._id.get, telegram_file_id)
-                    req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n/stopgrade if end.", reply_to_message_id = Some(m.message_id))
-                    file.delete()
-                  } else {
-                    req ! SendMessage(ch.chatId, s"Suprisingly image is in DB already, looking for next")
-                    WaitingLinks.updateStatus(to._id.get, BoobsInMotionGIF.DUPLICATED)
-                    sendBoobsToGrade(ch)
-                  }
-                  if (h != to.hash) {
-                    req ! SendMessage(ch.chatId, s"hashes aren't the same = $h ${to.hash}", reply_to_message_id = Some(m.message_id))
-                  }
-                })
-                log.info(s"got file $fPath, downloading started")
-              case other =>
-                log.warning(s"got other response $other")
-            })
-          case another =>
-            log.warning(s"don't know what is this $another")
-            file.delete()
-        })
+      FetchAndCalculateHash(to.link).map { case (hash, file) =>
+        if (FilesDao.byHash(hash).nonEmpty) {
+          req ! SendMessage(ch.chatId, s"Suprisingly this image is in DB already, looking for next...")
+          WaitingLinks.updateStatus(to._id.get, BoobsInMotionGIF.DUPLICATED)
+          file.delete()
+          sendBoobsToGrade(ch, Some(req))
+        } else {
+          req ! SendMapped(SendDocument(ch.chatId, Left(file)), {
+            case Response(true, Left(id), _) =>
+              log.info(s"received $id, I know what it is")
+              file.delete()
+            case Response(true, Right(m: Message), _) if m.document.isDefined =>
+              val telegram_file_id = m.document.get.file_id
+              log.info(s"catched new boobs file $telegram_file_id")
+              req ! SendMapped(GetFile(telegram_file_id), {
+                case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
+                  req ! FetchFile(f, data => {
+                    val h = calculateMD5(data.get)
+                    if (FilesDao.byHash(h).isEmpty) {
+                      questions += ch.chatId ->(to._id.get, telegram_file_id)
+                      req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n/stopgrade if end.", reply_to_message_id = Some(m.message_id))
+                      file.delete()
+                    } else {
+                      req ! SendMessage(ch.chatId, s"Suprisingly image is in DB already, looking for next")
+                      WaitingLinks.updateStatus(to._id.get, BoobsInMotionGIF.DUPLICATED)
+                      sendBoobsToGrade(ch, Some(req))
+                    }
+                    if (h != to.hash) {
+                      req ! SendMessage(ch.chatId, s"hashes aren't the same = $h ${to.hash}", reply_to_message_id = Some(m.message_id))
+                    }
+                  })
+                  log.info(s"got file $fPath, downloading started")
+                case other =>
+                  log.warning(s"got other response $other")
+              })
+            case another =>
+              log.warning(s"don't know what is this $another")
+              file.delete()
+          })
+        }
       }
     }.getOrElse {
       sender() ! SendMessage(ch.chatId, "No waiting links")
