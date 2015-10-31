@@ -275,6 +275,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
     log.info(s"next image will be $toMaybe")
     toMaybe.map { to =>
       val req = sender()
+      log.info(s"using ${to.link}")
       FetchAndCalculateHash(to.link).map { case (_, file) =>
         req ! SendMapped(SendDocument(ch.chatId, Left(file)), {
           case Response(true, Left(id), _) =>
@@ -287,6 +288,15 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
               case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
                 req ! FetchFile(f, data => {
                   val h = calculateMD5(data.get)
+                  if (FilesDao.byHash(h).isEmpty) {
+                    questions += ch.chatId ->(to._id.get, telegram_file_id)
+                    req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n/stopgrade if end.", reply_to_message_id = Some(m.message_id))
+                    file.delete()
+                  } else {
+                    req ! SendMessage(ch.chatId, s"Suprisingly image is in DB already, looking for next")
+                    WaitingLinks.updateStatus(to._id.get, BoobsInMotionGIF.DUPLICATED)
+                    sendBoobsToGrade(ch)
+                  }
                   if (h != to.hash) {
                     req ! SendMessage(ch.chatId, s"hashes aren't the same = $h ${to.hash}", reply_to_message_id = Some(m.message_id))
                   }
@@ -295,9 +305,6 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
               case other =>
                 log.warning(s"got other response $other")
             })
-            questions += ch.chatId ->(to._id.get, telegram_file_id)
-            req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n/stopgrade if end.", reply_to_message_id = Some(m.message_id))
-            file.delete()
           case another =>
             log.warning(s"don't know what is this $another")
             file.delete()

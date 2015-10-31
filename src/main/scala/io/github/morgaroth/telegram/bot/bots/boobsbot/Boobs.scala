@@ -31,7 +31,7 @@ trait BoobsDao {
 
   lazy val dao = {
     val d = new MongoDAO[Boobs](config, collection.getOrElse("files")) {}
-    d.collection.ensureIndex("hash")
+    d.collection.ensureIndex(MongoDBObject("hash" -> 1), "hash_idx", unique = true)
     d
   }
 
@@ -51,5 +51,5 @@ trait BoobsDao {
 
   def byId(id: String): Option[Boobs] = dao.findOneById(id)
 
-  def contains(hash:String) = dao.findOne(MongoDBObject("hash" -> hash)).nonEmpty
+  def contains(hash: String) = dao.findOne(MongoDBObject("hash" -> hash)).nonEmpty
 }
