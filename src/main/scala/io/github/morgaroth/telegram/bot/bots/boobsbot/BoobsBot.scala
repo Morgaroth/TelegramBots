@@ -18,6 +18,7 @@ import io.github.morgaroth.telegram.bot.core.api.models.formats._
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.telegram.bot.core.engine.core.BotActor._
 import org.bson.types.ObjectId
+import org.joda.time.DateTimeZone
 
 import scala.language.reflectiveCalls
 import scala.util.{Failure, Success, Try}
@@ -38,18 +39,17 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
 
   val hardSelf = self
 
-  val FilesDao = new BoobsDao {
+  val BoobsDB = new BoobsDao {
     override def config = dbCfg
   }
   val SubsDao = new BoobsListenerDao {
     override def config = dbCfg
   }
-  val WaitingLinks = {
-    log.info(s"accessing waiting links $dbCfg")
-    new BoobsInMotionGIFDao {
-      override def dbConfig: Config = dbCfg
-    }
+  val WaitingLinks = new BoobsInMotionGIFDao {
+    override def dbConfig: Config = dbCfg
   }
+
+  val BOT_CREATOR = 36792931
 
   val questions = scala.collection.mutable.Map.empty[Int, (ObjectId, String)]
   //
@@ -71,14 +71,14 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
     case NoArgCommand("stats", (chat, _, _)) =>
       sender() ! SendMessage(chat.chatId,
         s"""Status are:
-           |* all files in database = ${FilesDao.dao.count()}
+           |* all files in database = ${BoobsDB.dao.count()}
            |* all subscribers in database = ${SubsDao.dao.count()}
            |
           |This is all for now.
       """.stripMargin)
 
     case NoArgCommand("all", (ch, user, _)) if user.id == 36792931 =>
-      FilesDao.dao.find(MongoDBObject.empty).foreach(f =>
+      BoobsDB.dao.find(MongoDBObject.empty).foreach(f =>
         sender() ! SendBoobsCorrectType(ch.chatId, f)
       )
 
@@ -112,9 +112,9 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
       val sen = sender()
       Try {
         val f = args.map(_.toInt) match {
-          case from :: to :: Nil => LinksFromTumblrFetch.runAsync("boobsinmotion", from, Some(to))
-          case from :: Nil => LinksFromTumblrFetch.runAsync("boobsinmotion", from)
-          case Nil => LinksFromTumblrFetch.runAsync("boobsinmotion", 0)
+          case from :: to :: Nil => LinksFromTumblrFetch.runAsync(BoobsDB, WaitingLinks, "boobsinmotion", from, Some(to))
+          case from :: Nil => LinksFromTumblrFetch.runAsync(BoobsDB, WaitingLinks, "boobsinmotion", from)
+          case Nil => LinksFromTumblrFetch.runAsync(BoobsDB, WaitingLinks, "boobsinmotion", 0)
         }
         f.onComplete {
           case Success(inserted) =>
@@ -165,12 +165,12 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
           if (m.reply_to_message.isDefined) {
             if (m.reply_to_message.get.document.isDefined) {
               val toRemove = m.reply_to_message.get.document.get.file_id
-              FilesDao.dao.remove(MongoDBObject("_id" -> toRemove))
+              BoobsDB.dao.remove(MongoDBObject("_id" -> toRemove))
               sender() ! SendMessage(m.chatId, "Deleted.")
             } else if (m.reply_to_message.get.photo.isDefined) {
               val photos = m.reply_to_message.get.photo.get
               val biggest: String = photos.sortBy(_.width).last.file_id
-              FilesDao.dao.remove(MongoDBObject("_id" -> biggest))
+              BoobsDB.dao.remove(MongoDBObject("_id" -> biggest))
               sender() ! SendMessage(m.chatId, "Deleted.")
             } else {
               sender() ! SendMessage(m.chatId, "Sorry, this message isn't a photo/file comment of reply.")
@@ -194,7 +194,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
       val photos = m.photo.get
       val biggest: PhotoSize = photos.sortBy(_.width).last
       val hardSender = sender()
-      FilesDao.byId(biggest.file_id) match {
+      BoobsDB.byId(biggest.file_id) match {
         case Some(prev) =>
           hardSender ! SendMessage(u.message.chatId, "This image is already in DataBase")
         case None =>
@@ -210,12 +210,12 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
     case FileFetchingResult(File(fId, _, _), author, t, Success(data)) =>
       log.info(s"file $fId fetched")
       val hash = calculateMD5(data)
-      val info = FilesDao.byHash(hash) match {
+      val info = BoobsDB.byHash(hash) match {
         case Some(prev) => "This image is already in DataBase"
         case None =>
           Try {
             val files = Boobs(fId, t, hash, Some(author.uber))
-            FilesDao.dao.insert(files)
+            BoobsDB.dao.insert(files)
             self.forward(PublishBoobs(files, author))
             "Thx!"
           }.recover {
@@ -235,7 +235,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
         val mime = doc.mime_type.get
         if (Set("image/jpeg", "image/png", "image/gif") contains mime) {
           val hardSender = sender()
-          FilesDao.byId(doc.file_id) match {
+          BoobsDB.byId(doc.file_id) match {
             case Some(prev) =>
               hardSender ! SendMessage(u.message.chatId, "This image is already in DataBase")
             case None =>
@@ -265,7 +265,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
   }
 
   def sendBoobs(x: Int, ch: Int): Unit = {
-    FilesDao.random(x).foreach(fId =>
+    BoobsDB.random(x).foreach(fId =>
       sender() ! SendBoobsCorrectType(ch, fId)
     )
   }
@@ -277,8 +277,20 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
       val req = respondTo.getOrElse(sender())
       log.info(s"using ${to.link}")
       FetchAndCalculateHash(to.link).map { case (hash, file) =>
-        if (FilesDao.byHash(hash).nonEmpty) {
-          req ! SendMessage(ch.chatId, s"Suprisingly this image is in DB already, looking for next...")
+        val hash1 = BoobsDB.byHash(hash)
+        if (hash1.nonEmpty) {
+          req ! SendMapped(SendMessage(ch.chatId,
+            s"""Suprisingly this image is in DB already, looking for next...
+               |inserted by ${hash1.get.creator.map(_.getAnyUserName).getOrElse("anonymous")} at ${hash1.get.created.withZone(DateTimeZone.forID("Poland")).toString}
+               |image link ${to.link}
+               |previously/already calculated hashes:
+               |${to.hash}
+               |$hash""".stripMargin), {
+            case Response(true, Right(m: Message), _) =>
+              req ! SendDocument(ch.chatId, Right(hash1.get.fileId), reply_to_message_id = Some(m.message_id))
+            case a =>
+              req ! SendMessage(ch.chatId, s"unknown respond ${a.toString}")
+          })
           WaitingLinks.updateStatus(to._id.get, BoobsInMotionGIF.DUPLICATED)
           file.delete()
           sendBoobsToGrade(ch, Some(req))
@@ -294,7 +306,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
                 case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
                   req ! FetchFile(f, data => {
                     val h = calculateMD5(data.get)
-                    if (FilesDao.byHash(h).isEmpty) {
+                    if (BoobsDB.byHash(h).isEmpty) {
                       questions += ch.chatId ->(to._id.get, telegram_file_id)
                       req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n/stopgrade if end.", reply_to_message_id = Some(m.message_id))
                       file.delete()
@@ -340,9 +352,13 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
         |/subscribe - subscribes this chat to boobs news
         |/unsubscribe - unsubscribes
         |/delete - as reply to image - deletes boobs from DB
-        |/help - returns this help
-      """.stripMargin
-    sender() ! SendMessage(chatId, text, Some("Markdown"))
+        |/help - returns this help""".stripMargin + (
+        if (chatId == BOT_CREATOR)
+          """
+            |/grade - start grading waiting images
+            |/all - sends all boobs""".stripMargin
+        else "")
+    sender() ! SendMessage(chatId, text)
   }
 
   def SendBoobsCorrectType(to: Int, fId: Boobs): Command = {
@@ -350,7 +366,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
   }
 
   def doSthWithNewFile(chatId: Chat, worker: ActorRef, files: Boobs, publish: Boolean = true) = {
-    Try(FilesDao.dao.insert(files)).map(x => log.info(s"saved to db $files")).getOrElse {
+    Try(BoobsDB.dao.insert(files)).map(x => log.info(s"saved to db $files")).getOrElse {
       log.warning(s"not saved $files")
     }
     if (publish) {
@@ -360,7 +376,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
 
   def resolveLink(link: String, user: Chat, bot: ActorRef, publish: Boolean = true): Unit = {
     FetchAndCalculateHash(link).map { case (hash, tmpFile) =>
-      FilesDao.byHash(hash) match {
+      BoobsDB.byHash(hash) match {
         case Some(previous) =>
           bot ! SendMessage(user.chatId, "This image is already in DataBase")
           tmpFile.delete()

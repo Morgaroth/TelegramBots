@@ -6,4 +6,10 @@ case class UberUser(id: Int,
                     kind: String,
                     lastName: Option[String] = None,
                     username: Option[String] = None
-                     )
+                     ) {
+  def getAnyUserName = {
+    username.map(nick => s"@$nick").getOrElse {
+      lastName.map(x => s"$firstName $x").getOrElse(firstName)
+    }
+  }
+}

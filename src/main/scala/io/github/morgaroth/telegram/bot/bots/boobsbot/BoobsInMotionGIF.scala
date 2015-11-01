@@ -97,19 +97,10 @@ object LinksFromTumblrFetch extends TumblrKeys {
     a
   }
 
-  def doLogic(blog: String, pageStart: Int, pageEnd: Option[Int] = None)(implicit system: ActorSystem, log: LoggingAdapter) = {
+  def doLogic(existingBoobs: BoobsDao, waitingBoobs: BoobsInMotionGIFDao, blog: String, pageStart: Int, pageEnd: Option[Int] = None)(implicit system: ActorSystem, log: LoggingAdapter) = {
 
     import system.dispatcher
-    //    implicit val log = Logging(system, getClass)
     implicit val materializer = ActorMaterializer()
-
-    val dao = new BoobsInMotionGIFDao {
-      override def dbConfig: Config = ConfigFactory.parseString( """uri = "mongodb://localhost/TumblrLinks" """)
-    }
-    val boobsDao = new BoobsDao {
-      override def config: Config = ConfigFactory.parseString( """uri = "mongodb://localhost/CyckoBot" """)
-    }
-
 
     val b = new Iterator[List[Post]] {
       var current = pageStart
@@ -120,7 +111,7 @@ object LinksFromTumblrFetch extends TumblrKeys {
 
       def blogPosts = tumblrClient.blogPosts(s"$blog.tumblr.com", Map("limit" -> 20, "offset" -> current * 20).asJava)
 
-      val stopTime = dao.findLastInsertedTime
+      val stopTime = waitingBoobs.findLastInsertedTime
 
       var ifStop = false
 
@@ -147,13 +138,13 @@ object LinksFromTumblrFetch extends TumblrKeys {
     }
 
     def fileMayBeNew(t: BoobsInMotionGIF) = {
-      !boobsDao.contains(t.hash)
+      !existingBoobs.contains(t.hash)
     }
 
     def saveBoobsLink(x: BoobsInMotionGIF): Either[BoobsInMotionGIF, String] = {
       Try {
-        val wr = dao.dao.insert(x)
-        wr.map(dao.dao.findOneById).map(_.map(Left(_)).getOrElse(Right("not found after insert"))).getOrElse(Right("not inserted"))
+        val wr = waitingBoobs.dao.insert(x)
+        wr.map(waitingBoobs.dao.findOneById).map(_.map(Left(_)).getOrElse(Right("not found after insert"))).getOrElse(Right("not inserted"))
       }.recover {
         case t: DuplicateKey =>
           Right("duplicated hash, loooz")
@@ -170,7 +161,7 @@ object LinksFromTumblrFetch extends TumblrKeys {
           BoobsInMotionGIF.waiting(photo.getOriginalSize.getUrl, post.getPostUrl, "", DateTime.parse(post.getDateGMT, df))
         )
       )
-      .filter(dao.notContainslink)
+      .filter(waitingBoobs.notContainslink)
       .mapAsync(10)(x =>
         FetchAndCalculateHash(x.link).map(hashAndFile => Some(x.copy(hash = hashAndFile._1))).recover {
           case UnsupportedBoobsContent(ct) =>
@@ -192,19 +183,26 @@ object LinksFromTumblrFetch extends TumblrKeys {
     r
   }
 
-  def run(blog: String, pageStart: Int, pageEnd: Option[Int] = None)(implicit system: ActorSystem, log: LoggingAdapter) = {
-    Await.result(doLogic(blog, pageStart, pageEnd), 10.minutes)
+  def run(boobs: BoobsDao, waitingBoobs: BoobsInMotionGIFDao, blog: String, pageStart: Int, pageEnd: Option[Int] = None)(implicit system: ActorSystem, log: LoggingAdapter) = {
+    Await.result(doLogic(boobs, waitingBoobs, blog, pageStart, pageEnd), 10.minutes)
   }
 
-  def runAsync(blog: String, pageStart: Int, pageEnd: Option[Int] = None)(implicit system: ActorSystem, log: LoggingAdapter) = {
-    doLogic(blog, pageStart, pageEnd)
+  def runAsync(boobs: BoobsDao, waitingBoobs: BoobsInMotionGIFDao, blog: String, pageStart: Int, pageEnd: Option[Int] = None)(implicit system: ActorSystem, log: LoggingAdapter) = {
+    doLogic(boobs, waitingBoobs, blog, pageStart, pageEnd)
   }
 
 
   def main(args: Array[String]) {
     implicit val system = ActorSystem("tumblr")
     implicit val log = Logging(system, getClass)
-    run("boobsinmotion", 0, Some(570))
+    val waitingBoobs = new BoobsInMotionGIFDao {
+      override def dbConfig: Config = ConfigFactory.parseString( """uri = "mongodb://localhost/TumblrLinks" """)
+    }
+    val boobs = new BoobsDao {
+      override def config: Config = ConfigFactory.parseString( """uri = "mongodb://localhost/CyckoBot" """)
+    }
+
+    run(boobs, waitingBoobs, "boobsinmotion", 0, Some(570))
     system.shutdown()
   }
 }
