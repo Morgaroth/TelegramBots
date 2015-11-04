@@ -26,8 +26,8 @@ import scala.util.Try
 
 
 /**
- * Created by mateusz on 16.10.15.
- */
+  * Created by mateusz on 16.10.15.
+  */
 object BoobsInMotionGIF {
   val ACC = "accepted"
   val REJECTED = "rejected"
@@ -46,7 +46,7 @@ case class BoobsInMotionGIF(
                              postTime: DateTime,
                              accepted: String,
                              createdAt: DateTime
-                             )
+                           )
 
 trait BoobsInMotionGIFDao {
   def dbConfig: Config
@@ -73,7 +73,10 @@ trait BoobsInMotionGIFDao {
       .map(_.postTime)
       .getOrElse(DateTime.now.withMillis(0))
 
-  def oneWaiting = dao.findOne(MongoDBObject("accepted" -> BoobsInMotionGIF.WAITING))
+  def oneWaiting(butNo: Set[ObjectId]) = dao.findOne(MongoDBObject(
+    "accepted" -> BoobsInMotionGIF.WAITING,
+    "_id" -> MongoDBObject("$nin" -> butNo.map(_.toString))
+  ))
 
   def nWaiting(n: Int) = dao.find(MongoDBObject("accepted" -> BoobsInMotionGIF.WAITING)).limit(n).toList
 
@@ -86,8 +89,8 @@ trait BoobsInMotionGIFDao {
 }
 
 /**
- * Created by mateusz on 15.10.15.
- */
+  * Created by mateusz on 15.10.15.
+  */
 object LinksFromTumblrFetch extends TumblrKeys {
   val df = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss 'GMT'").withZone(DateTimeZone.forID("Etc/GMT"))
 

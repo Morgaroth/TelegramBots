@@ -71,44 +71,46 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
     case NoArgCommand("stats", (chat, _, _)) =>
       sender() ! SendMessage(chat.chatId,
         s"""Status are:
-           |* all files in database = ${BoobsDB.dao.count()}
-           |* all subscribers in database = ${SubsDao.dao.count()}
-           |
+            |* all files in database = ${BoobsDB.dao.count()}
+            |* all subscribers in database = ${SubsDao.dao.count()}
+            |
           |This is all for now.
       """.stripMargin)
 
-    case NoArgCommand("all", (ch, user, _)) if user.id == 36792931 =>
+    case NoArgCommand("all", (ch, user, _)) if ch.isPrvChat && user.id == BOT_CREATOR =>
       BoobsDB.dao.find(MongoDBObject.empty).foreach(f =>
         sender() ! SendBoobsCorrectType(ch.chatId, f)
       )
 
-    case MultiArgCommand("grade", args, (ch, user, _)) if user.id == 36792931 =>
+    case MultiArgCommand("grade", args, (ch, user, _)) if ch.isPrvChat && user.id == BOT_CREATOR =>
       sendBoobsToGrade(ch)
 
-    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") =>
+    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") && ch.isPrvChat && user.id == BOT_CREATOR =>
       val arg = comm.split("_").toList.tail.head
       log.info(s"received grade $arg command")
       (questions.get(ch.chatId), arg) match {
         case (Some((fileId, telegram_f_id)), "YES") =>
           val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
           doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = false)
+          sendBoobsToGrade(ch)
         case (Some((fileId, telegram_f_id)), "PUBLISH") =>
           val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
           doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = true)
+          sendBoobsToGrade(ch)
         case (Some((fileId, telegram_f_id)), "NO") =>
           WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED)
+          sendBoobsToGrade(ch)
         case (a, b) =>
           sender() ! SendMessage(ch.chatId, s"Sorry, I dont know $b with cache $a, but I have sth for You:")
           sender() ! sendBoobs(1, ch.chatId)
       }
       questions -= ch.chatId
-      sendBoobsToGrade(ch)
 
-    case NoArgCommand("stopgrade", (ch, _, _)) =>
+    case NoArgCommand("stopgrade", (ch, _, _)) if ch.isPrvChat && ch.chatId == BOT_CREATOR =>
       questions -= ch.chatId
       sender() ! SendMessage(ch.chatId, "OK, end", reply_markup = ReplyKeyboardHide())
 
-    case MultiArgCommand("updatedb", args, (ch, user, _)) if user.id == 36792931 =>
+    case MultiArgCommand("updatedb", args, (ch, user, _)) if ch.isPrvChat && user.id == BOT_CREATOR =>
       val sen = sender()
       Try {
         val f = args.map(_.toInt) match {
@@ -271,7 +273,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
   }
 
   def sendBoobsToGrade(ch: Chat, respondTo: Option[ActorRef] = None): Unit = {
-    val toMaybe = WaitingLinks.oneWaiting
+    val toMaybe = WaitingLinks.oneWaiting(questions.values.map(_._1).toSet)
     log.info(s"next image will be $toMaybe")
     toMaybe.map { to =>
       val req = respondTo.getOrElse(sender())
@@ -281,11 +283,11 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
         if (hash1.nonEmpty) {
           req ! SendMapped(SendMessage(ch.chatId,
             s"""Suprisingly this image is in DB already, looking for next...
-               |inserted by ${hash1.get.creator.map(_.getAnyUserName).getOrElse("anonymous")} at ${hash1.get.created.withZone(DateTimeZone.forID("Poland")).toString}
-               |image link ${to.link}
-               |previously/already calculated hashes:
-               |${to.hash}
-               |$hash""".stripMargin), {
+                |inserted by ${hash1.get.creator.map(_.getAnyUserName).getOrElse("anonymous")} at ${hash1.get.created.withZone(DateTimeZone.forID("Poland")).toString}
+                |image link ${to.link}
+                |previously/already calculated hashes:
+                |${to.hash}
+                |$hash""".stripMargin), {
             case Response(true, Right(m: Message), _) =>
               req ! SendDocument(ch.chatId, Right(hash1.get.fileId), reply_to_message_id = Some(m.message_id))
             case a =>
