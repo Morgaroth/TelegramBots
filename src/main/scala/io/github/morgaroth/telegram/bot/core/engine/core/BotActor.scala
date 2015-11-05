@@ -117,7 +117,6 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
     case OK(id) =>
 
     case FetchFile(fpath, callback) =>
-      val hardSender = sender()
       fetchFile(fpath.file_path.get).onComplete {
         r => callback(r)
       }

@@ -91,11 +91,11 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
       (questions.get(ch.chatId), arg) match {
         case (Some((fileId, telegram_f_id)), "YES") =>
           val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
-          doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = false)
+          doSthWithNewFile(ch, sender(), Boobs.create(telegram_f_id, Boobs.document, a.get.hash, ch.uber), publish = false)
           sendBoobsToGrade(ch)
         case (Some((fileId, telegram_f_id)), "PUBLISH") =>
           val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
-          doSthWithNewFile(ch, sender(), Boobs(telegram_f_id, Boobs.document, a.get.hash, Some(ch.uber)), publish = true)
+          doSthWithNewFile(ch, sender(), Boobs.create(telegram_f_id, Boobs.document, a.get.hash, ch.uber), publish = true)
           sendBoobsToGrade(ch)
         case (Some((fileId, telegram_f_id)), "NO") =>
           WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED)
@@ -202,7 +202,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
         case None =>
           hardSender ! SendMapped(GetFile(biggest.file_id), {
             case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
-              hardSender ! FetchFile(f, data => hardSelf ! FileFetchingResult(f, u.message.chat, Boobs.photo, data))
+              hardSender ! FetchFile(f, data => hardSelf.tell(FileFetchingResult(f, u.message.chat, Boobs.photo, data), hardSender))
               log.info(s"got file $fPath, downloading started")
             case other =>
               log.warning(s"got other response $other")
@@ -216,7 +216,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
         case Some(prev) => "This image is already in DataBase"
         case None =>
           Try {
-            val files = Boobs(fId, t, hash, Some(author.uber))
+            val files = Boobs.create(fId, t, hash, author.uber)
             BoobsDB.dao.insert(files)
             self.forward(PublishBoobs(files, author))
             "Thx!"
@@ -389,7 +389,7 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
               tmpFile.delete()
             case Response(true, Right(m: Message), _) if m.document.isDefined =>
               log.info(s"catched new boobs file ${m.document.get.file_id}")
-              doSthWithNewFile(user, bot, Boobs(m.document.get.file_id, Boobs.document, hash, Some(user.uber)), publish)
+              doSthWithNewFile(user, bot, Boobs.create(m.document.get.file_id, Boobs.document, hash, user.uber), publish)
               tmpFile.delete()
             case another =>
               log.warning(s"don't know what is this $another")

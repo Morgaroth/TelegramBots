@@ -1,6 +1,7 @@
 package io.github.morgaroth.telegram.bot.bots.boobsbot
 
 import java.io.{File => JFile, FileOutputStream}
+import java.nio.file.Files
 import java.security.MessageDigest
 import javax.xml.bind.DatatypeConverter
 
@@ -17,8 +18,8 @@ import scala.concurrent.duration._
 import scala.util.Random
 
 /**
- * Created by mateusz on 17.10.15.
- */
+  * Created by mateusz on 17.10.15.
+  */
 object FetchAndCalculateHash {
 
   case class UnsupportedBoobsContent(other: ContentType) extends IllegalArgumentException
@@ -42,7 +43,10 @@ object FetchAndCalculateHash {
       contentType.map { ct =>
         log.info(s"recovered content $ct")
         val data = res.entity.data.toByteArray
-        val tmpFile = JFile.createTempFile(Random.alphanumeric.take(5).mkString("boobs", "", ""), s".$ct")
+        val tmpDir = Files.createTempDirectory("tmpdir")
+        val tmpFile = new JFile(tmpDir.toFile, s"boobs.$ct")
+        tmpFile.createNewFile()
+        // val tmpFile = JFile.createTempFile(Random.alphanumeric.take(5).mkString("boobs", "", ""), s".$ct")
         val stream = new FileOutputStream(tmpFile)
         stream.write(data)
         stream.flush()
