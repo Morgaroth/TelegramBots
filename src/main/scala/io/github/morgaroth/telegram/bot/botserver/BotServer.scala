@@ -2,6 +2,7 @@ package io.github.morgaroth.telegram.bot.botserver
 
 import java.io.File
 import io.github.morgaroth.telegram.bot.bots.boobsbot.BoobsBot
+import io.github.morgaroth.telegram.bot.bots.groupalias.CallOutBot
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 
@@ -47,6 +48,9 @@ object BotServer extends BotsApp {
     val bots: List[(String, (BotConfig => Props))] = List(
       "BoobsBot" -> (cfg => {
         BoobsBot.props(cfg.additional.getConfig("database"))
+      }),
+      "CallOutBot" -> (cfg => {
+        CallOutBot.props(cfg.additional.getConfig("database"))
       }),
       "NTDBot" -> (s => NTDBot.props())
     )

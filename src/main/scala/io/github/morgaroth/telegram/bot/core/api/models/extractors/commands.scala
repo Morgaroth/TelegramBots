@@ -4,15 +4,15 @@ import io.github.morgaroth.telegram.bot.core.api.models.{Update, User, Chat, Mes
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 
 /**
- * Created by mateusz on 24.09.15.
- */
+  * Created by mateusz on 24.09.15.
+  */
 object NoArgCommandMessage {
   def unapply(m: Message): Option[(String, (Chat, User, Int))] = {
     m match {
       case OnlyTextMessage(chat, text, author, mId) if text.startsWith("/") && text.length > 1 =>
         val command = text.drop(1).trim
         command.split( """([ \n\t]+)""").toList match {
-          case elem :: Nil => Some((elem, (chat, author, mId)))
+          case elem :: Nil if !elem.startsWith("@") => Some((elem.takeWhile(_ != '@'), (chat, author, mId)))
           case _ => None
         }
       case _ => None
@@ -50,7 +50,7 @@ object SingleArgCommandMessage {
       case OnlyTextMessage(chat, text, author, mId) if text.startsWith("/") && text.length > 1 =>
         val command = text.drop(1).trim
         command.span(_ != ' ') match {
-          case (comm, arg) if arg.nonEmpty => Some((comm, arg.trim, (chat, author, mId)))
+          case (comm, arg) if arg.nonEmpty && !comm.startsWith("@") => Some((comm.takeWhile(_ != '@'), arg.trim, (chat, author, mId)))
           case _ => None
         }
       case _ => None
@@ -74,7 +74,7 @@ object MultiArgCommandMessage {
       case OnlyTextMessage(chat, text, author, mId) if text.startsWith("/") && text.length > 1 =>
         val command = text.drop(1).trim
         command.split( """([ \n\t]+)""").toList match {
-          case commandName :: arguments => Some((commandName, arguments, (chat, author, mId)))
+          case commandName :: arguments if !commandName.startsWith("@") => Some((commandName.takeWhile(_ != '@'), arguments, (chat, author, mId)))
           case _ => None
         }
       case _ => None

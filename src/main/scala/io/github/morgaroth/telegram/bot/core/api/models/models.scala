@@ -39,8 +39,8 @@ object formats {
 }
 
 /**
- * https://core.telegram.org/bots/api#audio
- */
+  * https://core.telegram.org/bots/api#audio
+  */
 @json case class Audio(
                         file_id: String,
                         duration: Int,
@@ -48,55 +48,55 @@ object formats {
                         file_size: Int,
                         title: String,
                         performer: String
-                        )
+                      )
 
 /**
- * https://core.telegram.org/bots/api#contact
- */
+  * https://core.telegram.org/bots/api#contact
+  */
 @json case class Contact(
                           phone_number: String,
                           first_name: String,
                           last_name: Option[String],
                           user_id: Option[Int]
-                          )
+                        )
 
 /**
- * https://core.telegram.org/bots/api#document
- */
+  * https://core.telegram.org/bots/api#document
+  */
 @json case class Document(
                            file_id: String,
                            thumb: Option[PhotoSize],
                            file_name: Option[String],
                            mime_type: Option[String],
                            file_size: Option[Int]
-                           )
+                         )
 
 /**
- * https://core.telegram.org/bots/api#file
- */
+  * https://core.telegram.org/bots/api#file
+  */
 @json case class File(
                        file_id: String,
                        file_size: Option[Int],
                        file_path: Option[String]
-                       )
+                     )
 
 
 /**
- * https://core.telegram.org/bots/api#location
- */
+  * https://core.telegram.org/bots/api#location
+  */
 @json case class Location(
                            longitude: Double,
                            latitude: Double
-                           )
+                         )
 
 /**
- * https://core.telegram.org/bots/api#message
- */
+  * https://core.telegram.org/bots/api#message
+  */
 case class Message(
                     message_id: Int,
                     from: User,
                     date: Long,
-                    chat: Chat,
+                    chat: Either[User, GroupChat],
                     forward_from: Option[User],
                     forward_date: Option[Long],
                     text: Option[String],
@@ -114,8 +114,8 @@ case class Message(
                     delete_chat_photo: Option[Boolean],
                     group_chat_created: Option[Boolean],
                     reply_to_message: Option[Message]
-                    ) {
-  def chatId = chat.fold(_.id, _.id)
+                  ) {
+  def chatId = chat.chatId
 
   override def toString: String = {
     var separator: Option[String] = None
@@ -161,24 +161,24 @@ object Message {
 
 
 /**
- * https://core.telegram.org/bots/api#photosize
- */
+  * https://core.telegram.org/bots/api#photosize
+  */
 @json case class PhotoSize(
                             file_id: String,
                             width: Int,
                             height: Int,
                             file_size: Option[Int]
-                            )
+                          )
 
 /**
- * https://core.telegram.org/bots/api#replykeyboardmarkup
- */
+  * https://core.telegram.org/bots/api#replykeyboardmarkup
+  */
 @json case class ReplyKeyboardMarkup(
                                       keyboard: List[List[String]],
                                       resize_keyboard: Option[Boolean] = None,
                                       one_time_keyboard: Option[Boolean] = None,
                                       selective: Option[Boolean] = None
-                                      )
+                                    )
 
 object ReplyKeyboardMarkup {
   def once(keyboard: List[List[String]], resize_keyboard: Boolean = true, selective: Boolean = false) =
@@ -189,44 +189,44 @@ object ReplyKeyboardMarkup {
 }
 
 /**
- * https://core.telegram.org/bots/api#replykeyboardhide
- */
+  * https://core.telegram.org/bots/api#replykeyboardhide
+  */
 @json case class ReplyKeyboardHide(
                                     hide_keyboard: Boolean = true,
                                     selective: Option[Boolean] = None
-                                    )
+                                  )
 
 /**
- * https://core.telegram.org/bots/api#forcereply
- */
+  * https://core.telegram.org/bots/api#forcereply
+  */
 @json case class ForceReply(
                              selective: Option[Boolean] = None,
                              force_reply: Boolean = true
-                             )
+                           )
 
 object ForceReply {
   def selective = apply(Some(true))
 }
 
 /**
- * https://core.telegram.org/bots/api#sticker
- */
+  * https://core.telegram.org/bots/api#sticker
+  */
 @json case class Sticker(
                           file_id: String,
                           width: Int,
                           height: Int,
                           file_size: Option[Int]
-                          )
+                        )
 
 /**
- * https://core.telegram.org/bots/api#user
- */
+  * https://core.telegram.org/bots/api#user
+  */
 @json case class User(
                        id: Int,
                        first_name: String,
                        last_name: Option[String],
                        username: Option[String]
-                       ) {
+                     ) {
   def getAnyUserName = {
     username.map(nick => s"@$nick").getOrElse {
       last_name.map(x => s"$first_name $x").getOrElse(first_name)
@@ -235,32 +235,32 @@ object ForceReply {
 }
 
 /**
- * https://core.telegram.org/bots/api#groupchat
- */
+  * https://core.telegram.org/bots/api#groupchat
+  */
 @json case class GroupChat(
                             id: Int,
                             title: String
-                            )
+                          )
 
 /**
- * https://core.telegram.org/bots/api#userprofilephotos
- */
+  * https://core.telegram.org/bots/api#userprofilephotos
+  */
 @json case class UserProfilePhotos(
                                     total_count: Int,
                                     photos: List[PhotoSize]
-                                    )
+                                  )
 
 /**
- * https://core.telegram.org/bots/api#update
- */
+  * https://core.telegram.org/bots/api#update
+  */
 @json case class Update(
                          update_id: Int,
                          message: Message
-                         )
+                       )
 
 /**
- * https://core.telegram.org/bots/api#video
- */
+  * https://core.telegram.org/bots/api#video
+  */
 @json case class Video(
                         file_id: String,
                         width: Int,
@@ -269,21 +269,21 @@ object ForceReply {
                         thumb: PhotoSize,
                         mime_type: Option[String],
                         file_size: Option[Int]
-                        )
+                      )
 
 /**
- * https://core.telegram.org/bots/api#voice
- */
+  * https://core.telegram.org/bots/api#voice
+  */
 @json case class Voice(
                         file_id: String,
                         duration: Int,
                         mime_type: Option[String],
                         file_size: Option[Int]
-                        )
+                      )
 
 /**
- * https://core.telegram.org/bots/api#sendmessage
- */
+  * https://core.telegram.org/bots/api#sendmessage
+  */
 @json case class SendMessage(
                               chat_id: Int,
                               text: String,
@@ -291,27 +291,27 @@ object ForceReply {
                               disable_web_page_preview: Option[Boolean] = None,
                               reply_to_message_id: Option[Int] = None,
                               reply_markup: Option[Keyboard] = None
-                              ) extends Command
+                            ) extends Command
 
 /**
- * https://core.telegram.org/bots/api#forwardmessage
- */
+  * https://core.telegram.org/bots/api#forwardmessage
+  */
 @json case class ForwardMessage(
                                  chat_id: Int,
                                  from_chat_id: Int,
                                  message_id: Int
-                                 ) extends Command
+                               ) extends Command
 
 /**
- * https://core.telegram.org/bots/api#sendphoto
- */
+  * https://core.telegram.org/bots/api#sendphoto
+  */
 case class SendPhoto(
                       chat_id: Int,
                       photo: Either[java.io.File, String],
                       caption: Option[String] = None,
                       reply_to_message_id: Option[Int] = None,
                       reply_markup: Option[Keyboard] = None
-                      ) extends Command {
+                    ) extends Command {
   def toForm: MultiMaybeForm =
     photo.left.map(data =>
       MultipartFormData(
@@ -330,8 +330,8 @@ case class SendPhoto(
 }
 
 /**
- * https://core.telegram.org/bots/api#sendaudio
- */
+  * https://core.telegram.org/bots/api#sendaudio
+  */
 case class SendAudio(
                       chat_id: Int,
                       audio: Either[java.io.File, String],
@@ -340,7 +340,7 @@ case class SendAudio(
                       title: Option[String] = None,
                       reply_to_message_id: Option[Int] = None,
                       reply_markup: Option[Keyboard] = None
-                      ) extends Command {
+                    ) extends Command {
   def toForm: MultiMaybeForm =
     audio.left.map(data =>
       MultipartFormData(
@@ -363,14 +363,14 @@ case class SendAudio(
 }
 
 /**
- * https://core.telegram.org/bots/api#senddocument
- */
+  * https://core.telegram.org/bots/api#senddocument
+  */
 case class SendDocument(
                          chat_id: Int,
                          document: Either[java.io.File, String],
                          reply_to_message_id: Option[Int] = None,
                          reply_markup: Option[Keyboard] = None
-                         ) extends Command {
+                       ) extends Command {
   def toForm: MultiMaybeForm =
     document.left.map(data =>
       MultipartFormData(
@@ -386,14 +386,14 @@ case class SendDocument(
 }
 
 /**
- * https://core.telegram.org/bots/api#sendsticker
- */
+  * https://core.telegram.org/bots/api#sendsticker
+  */
 case class SendSticker(
                         chat_id: Int,
                         sticker: Either[java.io.File, String],
                         reply_to_message_id: Option[Int],
                         reply_markup: Option[Keyboard]
-                        ) extends Command {
+                      ) extends Command {
   def toForm: MultiMaybeForm =
     sticker.left.map(data =>
       MultipartFormData(
@@ -410,8 +410,8 @@ case class SendSticker(
 }
 
 /**
- * https://core.telegram.org/bots/api#sendvideo
- */
+  * https://core.telegram.org/bots/api#sendvideo
+  */
 case class SendVideo(
                       chat_id: Int,
                       video: Either[java.io.File, String],
@@ -419,7 +419,7 @@ case class SendVideo(
                       caption: Option[String],
                       reply_to_message_id: Option[Int],
                       reply_markup: Option[Keyboard]
-                      ) extends Command {
+                    ) extends Command {
   def toForm: MultiMaybeForm =
     video.left.map(data =>
       MultipartFormData(
@@ -440,15 +440,15 @@ case class SendVideo(
 }
 
 /**
- * https://core.telegram.org/bots/api#sendvoice
- */
+  * https://core.telegram.org/bots/api#sendvoice
+  */
 case class SendVoice(
                       chat_id: Int,
                       voice: Either[java.io.File, String],
                       duration: Option[Int],
                       reply_to_message_id: Option[Int],
                       reply_markup: Option[Keyboard]
-                      ) extends Command {
+                    ) extends Command {
   def toForm: MultiMaybeForm = {
     voice.left.map(voice =>
       MultipartFormData(
@@ -469,23 +469,23 @@ case class SendVoice(
 }
 
 /**
- * https://core.telegram.org/bots/api#sendlocation
- */
+  * https://core.telegram.org/bots/api#sendlocation
+  */
 @json case class SendLocation(
                                chat_id: Int,
                                latitude: Double,
                                longitude: Double,
                                reply_to_message_id: Option[Int],
                                reply_markup: Option[Keyboard]
-                               ) extends Command
+                             ) extends Command
 
 /**
- * https://core.telegram.org/bots/api#sendchataction
- */
+  * https://core.telegram.org/bots/api#sendchataction
+  */
 @json case class SendChatAction(
                                  chat_id: Int,
                                  action: Action
-                                 ) extends Command
+                               ) extends Command
 
 @jsonstrict case class Action(name: String)
 
@@ -501,17 +501,17 @@ object Action {
 }
 
 /**
- * https://core.telegram.org/bots/api#getuserprofilephotos
- */
+  * https://core.telegram.org/bots/api#getuserprofilephotos
+  */
 @json case class GetUserProfilePhotos(
                                        user_id: Int,
                                        offset: Option[Int],
                                        limit: Option[Int]
-                                       ) extends Command
+                                     ) extends Command
 
 /**
- * https://core.telegram.org/bots/api#getfile
- */
+  * https://core.telegram.org/bots/api#getfile
+  */
 @json case class GetFile(
                           file_id: String
-                          ) extends Command
+                        ) extends Command

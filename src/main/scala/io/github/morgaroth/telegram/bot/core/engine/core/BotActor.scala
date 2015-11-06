@@ -14,8 +14,8 @@ import scala.language.{implicitConversions, reflectiveCalls}
 import scala.util.{Try, Failure, Success}
 
 /**
- * Created by mateusz on 23.09.15.
- */
+  * Created by mateusz on 23.09.15.
+  */
 object BotActor {
   def props(botName: String, botToken: String, cacheActor: ActorRef, updatesActor: ActorRef, worker: ActorRef): Props =
     Props(classOf[BotActor], botName, botToken, cacheActor, updatesActor, worker)
@@ -28,7 +28,7 @@ object BotActor {
 
   case class SendMapped(response: Command, fun: PartialFunction[Any, Unit])
 
-  case class FetchFile(f: File, onComplete:Try[Array[Byte]] => Unit)
+  case class FetchFile(f: File, onComplete: Try[Array[Byte]] => Unit)
 
   case class FileFetchingResult(file: File, author: Chat, `type`: String, result: Try[Array[Byte]])
 
@@ -52,6 +52,7 @@ class BotActor(botName: String, val botToken: String, cacheActor: ActorRef, upda
   var me: User = null
   getMe().onSuccess { case r =>
     me = r.result.right.get
+    worker ! me
   }
 
   updatesActor ! Register(botName, botToken, self)

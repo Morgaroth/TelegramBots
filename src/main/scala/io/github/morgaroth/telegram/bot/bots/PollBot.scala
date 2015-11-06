@@ -1,9 +1,9 @@
 package io.github.morgaroth.telegram.bot.bots
 
 import akka.actor.{Actor, ActorLogging, Props}
-import io.github.morgaroth.telegram.bot.core.api.models.extractors.{NoArgCommand, OnlyTextMessage, TextReply}
-import io.github.morgaroth.telegram.bot.core.api.models.formats._
 import io.github.morgaroth.telegram.bot.core.api.models._
+import io.github.morgaroth.telegram.bot.core.api.models.extractors.{NoArgCommand, TextReply}
+import io.github.morgaroth.telegram.bot.core.api.models.formats._
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 
 import scala.language.reflectiveCalls
@@ -23,14 +23,14 @@ class PollBot extends Actor with ActorLogging {
     case NoArgCommand("start", (ch, _, _)) =>
       sendHello(ch.chatId)
 
-    case NoArgCommand("newpoll", (Left(user), _, mId)) =>
+    case NoArgCommand("newpoll", (user, _, mId)) if user.isPrvChat =>
       sender() ! SendMessage(
-        chat_id = user.id,
+        chat_id = user.chatId,
         text = "Ok! Name your poll",
         reply_to_message_id = Some(mId),
         reply_markup = ForceReply.selective
       )
-    case NoArgCommand("newpoll", (Right(group), _, mId)) =>
+    case NoArgCommand("newpoll", (group, _, mId)) if group.isGroupChat =>
 
 
     case TextReply(m, text, chInf) =>

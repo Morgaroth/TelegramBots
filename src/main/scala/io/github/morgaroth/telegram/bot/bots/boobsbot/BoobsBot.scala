@@ -185,8 +185,8 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
         case illegal if m.reply_to_message.isDefined =>
         // ignore, someone only commented Bot message
         case unknown =>
-          sender() ! SendMessage(m.chatId, s"Sorry, I dont know command $unknown, but I have sth for You:")
-          sender() ! sendBoobs(1, m.chatId)
+//          sender() ! SendMessage(m.chatId, s"Sorry, I dont know command $unknown, but I have sth for You:")
+//          sender() ! sendBoobs(1, m.chatId)
       }
       sender() ! Handled(id)
 
