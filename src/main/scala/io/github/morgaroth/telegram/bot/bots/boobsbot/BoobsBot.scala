@@ -77,6 +77,15 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
           |This is all for now.
       """.stripMargin)
 
+    case NoArgCommand("waiting_stats", (chat, _, _)) if chat.chatId == BOT_CREATOR =>
+      sender() ! SendMessage(chat.chatId,
+        s"""Status are:
+            |* waiting = ${WaitingLinks.countWaiting}
+            |* accepted = ${WaitingLinks.countAccepted}
+            |* rejected = ${WaitingLinks.countRejected}
+            |This is all for now.
+      """.stripMargin)
+
     case NoArgCommand("all", (ch, user, _)) if ch.isPrvChat && user.id == BOT_CREATOR =>
       BoobsDB.dao.find(MongoDBObject.empty).foreach(f =>
         sender() ! SendBoobsCorrectType(ch.chatId, f)
@@ -185,8 +194,8 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
         case illegal if m.reply_to_message.isDefined =>
         // ignore, someone only commented Bot message
         case unknown =>
-//          sender() ! SendMessage(m.chatId, s"Sorry, I dont know command $unknown, but I have sth for You:")
-//          sender() ! sendBoobs(1, m.chatId)
+        //          sender() ! SendMessage(m.chatId, s"Sorry, I dont know command $unknown, but I have sth for You:")
+        //          sender() ! sendBoobs(1, m.chatId)
       }
       sender() ! Handled(id)
 
@@ -358,7 +367,8 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
         if (chatId == BOT_CREATOR)
           """
             |/grade - start grading waiting images
-            |/all - sends all boobs""".stripMargin
+            |/all - sends all boobs
+            |/waiting_stats""".stripMargin
         else "")
     sender() ! SendMessage(chatId, text)
   }

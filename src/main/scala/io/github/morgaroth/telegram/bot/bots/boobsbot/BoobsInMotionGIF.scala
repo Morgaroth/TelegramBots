@@ -59,6 +59,12 @@ trait BoobsInMotionGIFDao {
     d
   }
 
+  def countWaiting = dao.count(MongoDBObject("accepted" -> BoobsInMotionGIF.WAITING))
+
+  def countAccepted = dao.count(MongoDBObject("accepted" -> BoobsInMotionGIF.ACC))
+
+  def countRejected = dao.count(MongoDBObject("accepted" -> BoobsInMotionGIF.REJECTED))
+
   def notContainslink(obj: BoobsInMotionGIF): Boolean = notContainslink(obj.link)
 
   def notContainslink(link: String): Boolean = dao.findOne(MongoDBObject("link" -> link)).isEmpty
