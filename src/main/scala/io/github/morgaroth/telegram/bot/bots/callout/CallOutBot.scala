@@ -1,4 +1,4 @@
-package io.github.morgaroth.telegram.bot.bots.groupalias
+package io.github.morgaroth.telegram.bot.bots.callout
 
 import akka.actor.{Actor, ActorLogging, Props, Stash}
 import com.mongodb.casbah.commons.MongoDBObject
@@ -52,7 +52,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
   import context.dispatcher
 
   val dao = new CallOutGroupDao {
-    override def config: Config = cfg
+    override def config: Config = cfg.getConfig("database")
   }
 
   var me: User = null

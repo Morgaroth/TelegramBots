@@ -74,6 +74,10 @@ val akka =
     |  akka.actor.ActorRef self;
     |}
     |-keep class * implements akka.dispatch.MailboxType { public <init>(...); }
+    |-keepclasseswithmembernames class akka.actor.Stash { *; }
+    |-keepclasseswithmembernames class * implements akka.dispatch.RequiresMessageQueue { *; }
+    |-keepclasseswithmembernames class akka.dispatch.RequiresMessageQueue { *; }
+    |-keepclasseswithmembernames class akka.dispatch.DequeBasedMessageQueueSemantics { *; }
     |-keep class akka.event.Logging*
     |-keepclasseswithmembers class scala.concurrent.forkjoin.ForkJoinPool {
     |  long ctl;
@@ -104,16 +108,16 @@ val spray =
 
 val debug =
   """
-    |-dontoptimize
-    |#-dontobfuscate
-    |-keepattributes SourceFile,LineNumberTable
+    |#-dontoptimize
+    |-dontobfuscate
+    |#-keepattributes SourceFile,LineNumberTable
   """.stripMargin
 
 val modificators =
   """
     |-verbose
     |-dontnote
-    |-keepattributes Signature,*Annotation*
+    |-keepattributes *
     |-dontwarn
     |-printmapping mappings.txt
     |-ignorewarnings
@@ -169,7 +173,7 @@ ProguardKeys.options in Proguard ++= Seq(
   spray,
   program,
   tumblr,
-  //  debug,
+    debug,
   modificators,
   akka,
   mongoProguard

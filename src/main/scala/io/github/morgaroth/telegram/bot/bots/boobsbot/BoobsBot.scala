@@ -28,10 +28,10 @@ object BoobsBot {
 
   private[BoobsBot] case class PublishBoobs(content: Boobs, owner: Chat, worker: Option[ActorRef] = None)
 
-  def props(dbCfg: Config) = Props(classOf[BoobsBot], dbCfg)
+  def props(cfg: Config) = Props(classOf[BoobsBot], cfg)
 }
 
-class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
+class BoobsBot(cfg: Config) extends Actor with ActorLogging {
 
   import context.{dispatcher, system}
 
@@ -40,13 +40,13 @@ class BoobsBot(dbCfg: Config) extends Actor with ActorLogging {
   val hardSelf = self
 
   val BoobsDB = new BoobsDao {
-    override def config = dbCfg
+    override def config = cfg.getConfig("database")
   }
   val SubsDao = new BoobsListenerDao {
-    override def config = dbCfg
+    override def config = cfg.getConfig("database")
   }
   val WaitingLinks = new BoobsInMotionGIFDao {
-    override def dbConfig: Config = dbCfg
+    override def dbConfig: Config = cfg.getConfig("database")
   }
 
   val BOT_CREATOR = 36792931
