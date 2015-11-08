@@ -164,10 +164,13 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
       sender() ! SendMessage(chat.chatId, msg)
 
     case MultiArgCommand(groupName, _, (chat, from, _)) if chat.isGroupChat =>
-      dao.findGroup(groupName, chat).foreach { g =>
-        val msg = g.members.mkString("Call @", ", @", "")
-        sender() ! SendMessage(chat.chatId, msg)
-      }
+      dao.findGroup(groupName, chat)
+        .map(x => x.copy(members = x.members -- chat.uber.username.toSet))
+        .filter(_.members.nonEmpty)
+        .foreach { g =>
+          val msg = g.members.mkString("Call @", ", @", "")
+          sender() ! SendMessage(chat.chatId, msg)
+        }
 
     case NoArgCommand("start", (ch, _, _)) =>
       sender() ! SendMessage(ch.chatId, "Hello, this bot is under implementation")
