@@ -70,8 +70,8 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
 
     case NoArgCommand("stats", (chat, _, _)) =>
       sender() ! SendMessage(chat.chatId,
-        s"""Status are:
-            |* all files in database = ${BoobsDB.dao.count()}
+        s"""Statistics are:
+            |* all boobs in database (/2)= ${BoobsDB.dao.count()}
             |* all subscribers in database = ${SubsDao.dao.count()}
             |
           |This is all for now.
@@ -79,7 +79,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
 
     case NoArgCommand("waiting_stats", (chat, _, _)) if chat.chatId == BOT_CREATOR =>
       sender() ! SendMessage(chat.chatId,
-        s"""Status are:
+        s"""Statistics are:
             |* waiting = ${WaitingLinks.countWaiting}
             |* accepted = ${WaitingLinks.countAccepted}
             |* rejected = ${WaitingLinks.countRejected}
@@ -368,7 +368,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
           """
             |/grade - start grading waiting images
             |/all - sends all boobs
-            |/waiting_stats""".stripMargin
+            |/waiting_stats - sends statistics about waiting db""".stripMargin
         else "")
     sender() ! SendMessage(chatId, text)
   }

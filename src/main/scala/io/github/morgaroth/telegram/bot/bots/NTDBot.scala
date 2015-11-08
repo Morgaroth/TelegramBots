@@ -5,6 +5,7 @@ import io.github.morgaroth.telegram.bot.bots.NTDBot.{BanReminder, MessageMaxSize
 import io.github.morgaroth.telegram.bot.core.api.models._
 import io.github.morgaroth.telegram.bot.core.api.models.extractors._
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
+import io.github.morgaroth.telegram.bot.core.engine.core.BotActor.SendMapped
 import org.joda.time.{DateTime, DateTimeZone, LocalTime}
 
 import scala.collection.mutable
@@ -99,7 +100,7 @@ class NTDBot extends Actor with ActorLogging {
       log.info(s"marking user $user as fired by $from")
       bans.filterNot(_._1.username.contains(user))
 
-    case NewUpdate(_, _, Update(_, m)) if m.chat.isRight =>
+    case NewUpdate(_, _, Update(_, m)) if m.chat.isGroupChat =>
       log.info(s"received $m from group chat, ignoring")
 
     case NoArgCommand("start", (ch, _, _)) =>
@@ -137,7 +138,16 @@ class NTDBot extends Actor with ActorLogging {
 
     case SendBuffer if cache.nonEmpty && currentTimeInPoland.isAfter(ntdEnd) =>
       log.info(s"sending buffer...")
-      cache.foreach(worker ! _)
+      def send(queue: List[ForwardMessage]) {
+        queue match {
+          case Nil =>
+          case elem :: tail =>
+            worker ! SendMapped(elem, {
+              case _ => send(tail)
+            })
+        }
+      }
+      send(cache.toList)
       cache.clear()
 
     case BanReminder if bans.nonEmpty && (currentTimeInPoland.isAfter(banEnd) || currentTimeInPoland.isBefore(ntdBegin)) =>

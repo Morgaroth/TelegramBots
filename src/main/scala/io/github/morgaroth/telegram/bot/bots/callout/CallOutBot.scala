@@ -4,8 +4,9 @@ import akka.actor.{Actor, ActorLogging, Props, Stash}
 import com.mongodb.casbah.commons.MongoDBObject
 import com.novus.salat.global.ctx
 import com.typesafe.config.Config
-import io.github.morgaroth.telegram.bot.core.api.models.extractors.{MultiArgCommand, NoArgCommand, SingleArgCommand}
-import io.github.morgaroth.telegram.bot.core.api.models.{Chat, SendMessage, User}
+import io.github.morgaroth.telegram.bot.core.api.models.extractors._
+import io.github.morgaroth.telegram.bot.core.api.models._
+import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.utils.mongodb.salat.MongoDAO
 import org.bson.types.ObjectId
 
@@ -17,7 +18,7 @@ import scala.language.reflectiveCalls
   */
 
 case class CallOutGroup(
-                         chat: Int,
+                         chat: UberUser,
                          group: String,
                          members: Set[String] = Set.empty,
                          _id: Option[ObjectId]
@@ -35,10 +36,29 @@ trait CallOutGroupDao {
     d
   }
 
-  def findGroups(chat: Chat) = dao.find(MongoDBObject("chat" -> chat.chatId)).map(_.group)
+  def findGroups(chat: Chat) = dao.find(MongoDBObject("chat.id" -> chat.chatId)).map(_.group)
 
   def findGroup(group: String, chat: Chat): Option[CallOutGroup] = {
     dao.findOne(MongoDBObject("chat" -> chat.chatId, "group" -> group))
+  }
+
+  def getUserGroupsInChat(chat: Chat, username: String) = {
+    dao.find(MongoDBObject(
+      "chat.id" -> chat.chatId,
+      "members" -> username
+    ))
+  }
+
+  def findUserGroups(username: String) = {
+    dao.find(MongoDBObject("members" -> username)).toList
+  }
+
+  def removeUserFromChat(chat: Chat, username: String) = {
+    dao.update(
+      MongoDBObject("chat.id" -> chat.chatId, "members" -> username),
+      MongoDBObject("$pull" -> MongoDBObject("members" -> username)),
+      multi = true
+    )
   }
 }
 
@@ -69,24 +89,37 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
   }
 
   def working: Receive = {
-    case SingleArgCommand("_add_me", group, (chat, from, _)) if from.username.isDefined =>
-      addUserToGroup(group, chat, from.username.map(x => s"@$x").get)
+    case SingleArgCommand("_add_me", group, (chat, from, _)) if from.username.isDefined && chat.isGroupChat =>
+      addUserToGroup(group, chat, from.username.get)
 
-    case MultiArgCommand("_add", (user :: group :: Nil), (chat, from, _)) =>
-      addUserToGroup(group, chat, s"@${user.stripPrefix("@")}")
+    case MultiArgCommand("_add", (user :: group :: Nil), (chat, from, _)) if chat.isGroupChat =>
+      addUserToGroup(group, chat, user.stripPrefix("@"))
 
-    case SingleArgCommand("_remove_me", group, (chat, from, _)) if from.username.isDefined =>
-      dao.findGroup(group, chat).map { ex =>
-        val r = dao.dao.update(MongoDBObject("_id" -> ex._id.get), MongoDBObject("$pull" -> MongoDBObject("members" -> s"@${from.username.get}")))
-        log.info(s"user ${from.getAnyUserName} removed from group $group in chat $chat")
-        Future(dao.dao.remove(MongoDBObject("members.0" -> MongoDBObject("$exists" -> false))))
-        r
+    case SingleArgCommand("_remove_me", group, (chat, from, _)) if from.username.isDefined && group != "all" && chat.isGroupChat =>
+      removeUserFromGroup(group, chat, from.username.get)
+
+    case NewChatParticipant(user, (chat, from, _)) =>
+      log.info( s"""new chat participant $user in chat $chat, adding them to "all"""")
+      (from.username.toList ::: user.username.toList).foreach(u => addUserToGroup("all", chat, u))
+
+    case RemovedParticipant(user, date, (chat, from, _)) if user.username.isDefined =>
+      log.info(s"removed chat participant $user from $chat")
+      removeUserFromAllGroups(chat, user.username.get)
+
+    case SingleArgCommand("_remove_me", group, (chat, from, _)) if from.username.isDefined && chat.isGroupChat =>
+      chat.msg("You cannot remove self from all group, all is all.")
+
+    case NoArgCommand("_my_groups", (chat, from, _)) if chat.isPrvChat && from.username.isDefined =>
+      val userGroups = dao.findUserGroups(from.username.get)
+      val msg = if (userGroups.isEmpty) "You have no groups."
+      else {
+        userGroups.groupBy(_.chat.id).mapValues(x => x.head.chat -> x.map(_.group)).values.map {
+          case (ch, grps) => s"${ch.firstName}: ${grps.mkString(", ")}"
+        }.mkString("- ", "\n- ", "")
       }
+      sender() ! chat.msg(msg)
 
-    case NoArgCommand("_my_groups", (chat, from, _)) if chat.isPrvChat =>
-      sender() ! chat.msg("HTTP, 501")
-
-    case NoArgCommand("_list_groups", (chat, from, _)) =>
+    case NoArgCommand("_list_groups", (chat, from, _)) if chat.isGroupChat =>
       val grps = dao.findGroups(chat).toList
       val msg = if (grps.isEmpty) {
         "There is no groups"
@@ -95,14 +128,30 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
       }
       sender() ! SendMessage(chat.chatId, msg)
 
-    case MultiArgCommand(groupName, _, (chat, from, _)) =>
+    case MultiArgCommand(groupName, _, (chat, from, _)) if chat.isGroupChat =>
       dao.findGroup(groupName, chat).foreach { g =>
-        val msg = g.members.mkString("Call ", ", ", "")
+        val msg = g.members.mkString("Call @", ", @", "")
         sender() ! SendMessage(chat.chatId, msg)
       }
 
     case NoArgCommand("start", (ch, _, _)) =>
       sender() ! SendMessage(ch.chatId, "Hello, this bot is under implementation")
+
+    case NewUpdate(_, _, u: Update) if u.message.from.username.isDefined && u.message.chat.isGroupChat =>
+      addUserToGroup("all", u.message.chat, u.message.from.username.get)
+  }
+
+  def removeUserFromAllGroups(chat: Chat, username: String): Unit = {
+    dao.removeUserFromChat(chat, username)
+  }
+
+  def removeUserFromGroup(group: String, chat: Chat, username: String): Unit = {
+    dao.findGroup(group, chat).map { ex =>
+      val r = dao.dao.update(MongoDBObject("_id" -> ex._id.get), MongoDBObject("$pull" -> MongoDBObject("members" -> username)))
+      log.info(s"user $username removed from group $group in chat $chat")
+      Future(dao.dao.remove(MongoDBObject("members.0" -> MongoDBObject("$exists" -> false))))
+      r
+    }
   }
 
   def addUserToGroup(group: String, chat: Chat, user: String): Unit = {
@@ -115,7 +164,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
         log.info(s"user $user added to group $group in chat $chat")
         r
       } getOrElse {
-        dao.dao.save(CallOutGroup(chat.chatId, group, Set(user), None))
+        dao.dao.save(CallOutGroup(chat.uber, group, Set(user), None))
         log.info(s"user $user added to new group $group in chat $chat")
       }
     }
