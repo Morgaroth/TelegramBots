@@ -163,7 +163,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
       val msg = if (grps.isEmpty) {
         "There is no groups"
       } else {
-        grps.mkString("Groups in this channel:\n    ✔", "\n    ✔", "")
+        grps.mkString("Groups in this chat:\n    ✔", "\n    ✔", "")
       }
       sender() ! SendMessage(chat.chatId, msg)
 
