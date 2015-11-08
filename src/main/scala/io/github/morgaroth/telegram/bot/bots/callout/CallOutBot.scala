@@ -144,6 +144,10 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
     case SingleArgCommand("_remove_me", group, (chat, from, _)) if from.username.isDefined && chat.isGroupChat =>
       sender() ! chat.msg("You cannot remove self from all group, all is all.")
 
+    case SingleArgCommand("_members", group, (chat, from, _)) if chat.isGroupChat =>
+      val msg = dao.findGroup(group,chat).map(_.members.mkString(s"$group: ",", ","")).getOrElse(s"Group $group doesn't exist.")
+      sender() ! chat.msg(msg)
+
     case NoArgCommand("_my_groups", (chat, from, _)) if chat.isPrvChat && from.username.isDefined =>
       val userGroups = dao.findUserGroups(from.username.get)
       val msg = if (userGroups.isEmpty) "You have no groups."
