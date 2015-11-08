@@ -51,6 +51,12 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
 
   val BOT_CREATOR = 36792931
 
+  val BOOBS_SECRETS = Set(
+    84564283, // Da
+    76500924, // cz
+    36792931 // ma
+  )
+
   val questions = scala.collection.mutable.Map.empty[Int, (ObjectId, String)]
 
   override def receive: Receive = {
@@ -83,7 +89,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
         sender() ! SendBoobsCorrectType(ch.chatId, f)
       )
 
-    case NoArgCommand("grade", (ch, user, _)) if ch.isPrvChat =>
+    case NoArgCommand("grade", (ch, user, _)) if ch.isPrvChat && BOOBS_SECRETS.contains(ch.chatId) =>
       sender() ! ch.msg(
         """You are in grading process, in loop you receive image and list of possible answers:
           |- *grade_YES* marks boobs as good enough and saves in db
@@ -97,7 +103,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     case NoArgCommand("grade", (ch, user, _)) =>
       sender() ! ch.msg("Only in private chat.")
 
-    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") && ch.isPrvChat =>
+    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") && ch.isPrvChat  && BOOBS_SECRETS.contains(ch.chatId)  =>
       val arg = comm.split("_").toList.tail.head
       log.info(s"received grade $arg command")
       (questions.get(ch.chatId), arg) match {
@@ -167,7 +173,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
       sender() ! SendMessage(ch.chatId, response)
 
 
-    case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined =>
+    case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined  && BOOBS_SECRETS.contains(m.chatId)=>
       val g = m.text.get
       g.stripPrefix("/") match {
         case delete if delete.startsWith("delete") =>

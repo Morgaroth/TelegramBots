@@ -112,7 +112,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
   override def receive: Receive = {
     case u: User =>
       me = u
-      myUserName = s"@${u.username.get}"
+      myUserName = u.username.get
       log.info(s"I'm a $u")
       context become working
       unstashAll()
@@ -145,18 +145,18 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
       sender() ! chat.msg("You cannot remove self from all group, all is all.")
 
     case SingleArgCommand("_members", group, (chat, from, _)) if chat.isGroupChat =>
-      val msg = dao.findGroup(group,chat).map(_.members.mkString(s"$group: ",", ","")).getOrElse(s"Group $group doesn't exist.")
-      sender() ! chat.msg(msg)
+      val msg = dao.findGroup(group, chat).map(_.members.mkString(s"*$group*: ", ", ", "")).getOrElse(s"Group *$group* doesn't exist.")
+      sender() ! chat.msg(msg, parse_mode = Some("Markdown"))
 
     case NoArgCommand("_my_groups", (chat, from, _)) if chat.isPrvChat && from.username.isDefined =>
       val userGroups = dao.findUserGroups(from.username.get)
       val msg = if (userGroups.isEmpty) "You have no groups."
       else {
         userGroups.groupBy(_.chat.id).mapValues(x => x.head.chat -> x.map(_.group)).values.map {
-          case (ch, grps) => s"${ch.firstName}: ${grps.mkString(", ")}"
+          case (ch, grps) => s"*${ch.firstName}*: ${grps.mkString(", ")}"
         }.mkString("- ", "\n- ", "")
       }
-      sender() ! chat.msg(msg)
+      sender() ! chat.msg(msg, parse_mode = Some("Markdown"))
 
     case NoArgCommand("_list_groups", (chat, from, _)) if chat.isGroupChat =>
       val grps = dao.findGroups(chat).toList
@@ -169,11 +169,11 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
 
     case MultiArgCommand(groupName, _, (chat, from, _)) if chat.isGroupChat =>
       dao.findGroup(groupName, chat)
-        .map(x => x.copy(members = x.members -- chat.uber.username.toSet))
-        .filter(_.members.nonEmpty)
+        .map(x => x.members -- from.username.toSet)
+        .filter(_.nonEmpty)
         .foreach { g =>
-          val msg = g.members.mkString("Call @", ", @", "")
-          sender() ! SendMessage(chat.chatId, msg)
+          val msg = g.mkString("Call @", ", @", "")
+          sender() ! SendMessage(chat.chatId, msg, parse_mode = Some("Markdown"))
         }
 
     case NoArgCommand("start", (ch, _, _)) =>
@@ -184,11 +184,13 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
   }
 
   def addUserToGroup(group: String, chat: Chat, user: String): Unit = {
-    val valid = """[^a-zA-Z0-9]""".r.findFirstMatchIn(group)
-    if (valid.nonEmpty) {
-      sender() ! SendMessage(chat.chatId, s"Illegal character at position ${valid.head.start} (${valid.head.group(0)}), only alphanumeric allowed.")
-    } else {
-      dao.addUserToGroup(group, chat, user)
+    if (user != myUserName) {
+      val valid = """[^a-zA-Z0-9]""".r.findFirstMatchIn(group)
+      if (valid.nonEmpty) {
+        sender() ! SendMessage(chat.chatId, s"Illegal character at position ${valid.head.start} (${valid.head.group(0)}), only alphanumeric allowed.")
+      } else {
+        dao.addUserToGroup(group, chat, user)
+      }
     }
   }
 }
