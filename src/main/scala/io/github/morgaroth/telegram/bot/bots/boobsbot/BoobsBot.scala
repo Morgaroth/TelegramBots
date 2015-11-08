@@ -89,7 +89,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
         sender() ! SendBoobsCorrectType(ch.chatId, f)
       )
 
-    case NoArgCommand("grade", (ch, user, _)) if ch.isPrvChat && BOOBS_SECRETS.contains(ch.chatId) =>
+    case NoArgCommand("grade", (ch, user, _)) if ch.isPrvChat =>
       sender() ! ch.msg(
         """You are in grading process, in loop you receive image and list of possible answers:
           |- *grade_YES* marks boobs as good enough and saves in db
@@ -103,7 +103,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     case NoArgCommand("grade", (ch, user, _)) =>
       sender() ! ch.msg("Only in private chat.")
 
-    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") && ch.isPrvChat  && BOOBS_SECRETS.contains(ch.chatId)  =>
+    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") && ch.isPrvChat =>
       val arg = comm.split("_").toList.tail.head
       log.info(s"received grade $arg command")
       (questions.get(ch.chatId), arg) match {
@@ -173,10 +173,10 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
       sender() ! SendMessage(ch.chatId, response)
 
 
-    case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined  && BOOBS_SECRETS.contains(m.chatId)=>
+    case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined =>
       val g = m.text.get
       g.stripPrefix("/") match {
-        case delete if delete.startsWith("delete") =>
+        case delete if delete.startsWith("delete") && BOOBS_SECRETS.contains(m.chatId) =>
           if (m.reply_to_message.isDefined) {
             if (m.reply_to_message.get.document.isDefined) {
               val toRemove = m.reply_to_message.get.document.get.file_id
