@@ -1,23 +1,22 @@
 package io.github.morgaroth.telegram.bot.bots.boobsbot
 
 import akka.actor.ActorSystem
-import akka.event.{LoggingAdapter, Logging}
+import akka.event.{Logging, LoggingAdapter}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl._
 import com.mongodb.MongoException.DuplicateKey
-import com.mongodb.{WriteResult, MongoCredential}
-import com.mongodb.casbah.Imports
 import com.mongodb.casbah.commons.MongoDBObject
 import com.novus.salat.global.ctx
+import com.novus.salat.grater
 import com.tumblr.jumblr.JumblrClient
 import com.tumblr.jumblr.types.{PhotoPost, Post}
 import com.typesafe.config.{Config, ConfigFactory}
-import io.github.morgaroth.telegram.bot.bots.boobsbot.FetchAndCalculateHash.{UnsupportedBoobsContent, NoContentInformation}
+import io.github.morgaroth.telegram.bot.bots.boobsbot.FetchAndCalculateHash.{NoContentInformation, UnsupportedBoobsContent}
+import io.github.morgaroth.telegram.bot.core.api.models.User
 import io.github.morgaroth.utils.mongodb.salat._
 import org.bson.types.ObjectId
 import org.joda.time.format.DateTimeFormat
 import org.joda.time.{DateTime, DateTimeZone}
-import spray.httpx.unmarshalling.UnsupportedContentType
 
 import scala.collection.JavaConverters._
 import scala.concurrent.Await
@@ -34,7 +33,7 @@ object BoobsInMotionGIF {
   val WAITING = "waiting"
   val DUPLICATED = "duplicated"
 
-  def waiting(link: String, origin: String, hash: String, postTime: DateTime) = apply(None, link, origin, hash, postTime, WAITING, DateTime.now())
+  def waiting(link: String, origin: String, hash: String, postTime: DateTime) = apply(None, link, origin, hash, postTime, WAITING, DateTime.now(), None, None)
 }
 
 
@@ -45,7 +44,9 @@ case class BoobsInMotionGIF(
                              hash: String,
                              postTime: DateTime,
                              accepted: String,
-                             createdAt: DateTime
+                             createdAt: DateTime,
+                             grader: Option[User],
+                             gradedAt: Option[DateTime]
                            )
 
 trait BoobsInMotionGIFDao {
@@ -58,6 +59,7 @@ trait BoobsInMotionGIFDao {
     d.collection.ensureIndex(MongoDBObject("accepted" -> 1), "status_idx")
     d
   }
+  //  implicit val g = grater[User]
 
   def countWaiting = dao.count(MongoDBObject("accepted" -> BoobsInMotionGIF.WAITING))
 
@@ -81,17 +83,24 @@ trait BoobsInMotionGIFDao {
 
   def oneWaiting(butNo: Set[ObjectId]) = dao.findOne(MongoDBObject(
     "accepted" -> BoobsInMotionGIF.WAITING,
-    "_id" -> MongoDBObject("$nin" -> butNo.map(_.toString))
+    "_id" -> MongoDBObject("$not" -> MongoDBObject("$in" -> butNo))
   ))
 
   def nWaiting(n: Int) = dao.find(MongoDBObject("accepted" -> BoobsInMotionGIF.WAITING)).limit(n).toList
 
-  def updateStatus(id: ObjectId, status: String): Option[BoobsInMotionGIF] = {
-    dao.update(MongoDBObject("_id" -> id), MongoDBObject("$set" -> MongoDBObject("accepted" -> status)))
+  def updateStatus(id: ObjectId, status: String, user: Option[User]): Option[BoobsInMotionGIF] = {
+    dao.update(
+      MongoDBObject("_id" -> id),
+      MongoDBObject("$set" -> MongoDBObject(
+        "gradedAt" -> DateTime.now() ::
+          "accepted" -> status ::
+          user.map(x => "grader" -> grater[User].asDBObject(x)).toList
+      ))
+    )
     dao.findOneById(id)
   }
 
-  def updateStatus(id: String, status: String): Option[BoobsInMotionGIF] = updateStatus(new ObjectId(id), status)
+  def updateStatus(id: String, status: String, by: Option[User]): Option[BoobsInMotionGIF] = updateStatus(new ObjectId(id), status, by)
 }
 
 /**

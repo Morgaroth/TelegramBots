@@ -96,7 +96,7 @@ class NTDBot extends Actor with ActorLogging {
         log.warning("WTF?")
       }
 
-    case SingleArgCommand(comm, user, (chat, from, _)) =>
+    case SingleArgCommand("fired", user, (chat, from, _)) =>
       log.info(s"marking user $user as fired by $from")
       bans.filterNot(_._1.username.contains(user))
 

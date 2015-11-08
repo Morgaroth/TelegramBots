@@ -7,7 +7,7 @@ import sbtassembly.AssemblyPlugin.autoImport._
 
 name := "TelegramBots"
 
-version := "2.15"
+version := "2.16"
 
 scalaVersion := "2.11.7"
 

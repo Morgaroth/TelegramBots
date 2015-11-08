@@ -52,14 +52,6 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
   val BOT_CREATOR = 36792931
 
   val questions = scala.collection.mutable.Map.empty[Int, (ObjectId, String)]
-  //
-  //  @tailrec
-  //  private def firstEmpty: String = {
-  //    Random.alphanumeric.take(2).mkString match {
-  //      case valid if !questions.contains(valid) => valid
-  //      case _ => firstEmpty
-  //    }
-  //  }
 
   override def receive: Receive = {
     case SingleArgCommand("resolve", arg, (chat, _, _)) =>
@@ -77,7 +69,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
           |This is all for now.
       """.stripMargin)
 
-    case NoArgCommand("waiting_stats", (chat, _, _)) if chat.chatId == BOT_CREATOR =>
+    case NoArgCommand("waiting_stats", (chat, _, _)) =>
       sender() ! SendMessage(chat.chatId,
         s"""Statistics are:
             |* waiting = ${WaitingLinks.countWaiting}
@@ -91,31 +83,44 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
         sender() ! SendBoobsCorrectType(ch.chatId, f)
       )
 
-    case MultiArgCommand("grade", args, (ch, user, _)) if ch.isPrvChat && user.id == BOT_CREATOR =>
+    case NoArgCommand("grade", (ch, user, _)) if ch.isPrvChat =>
+      sender() ! ch.msg(
+        """You are in grading process, in loop you receive image and list of possible answers:
+          |- *grade_YES* marks boobs as good enough and saves in db
+          |- *grade_PUBLISH* as *grade_YES* and sends boobs to subscribents
+          |- *grade_NO* condemns those boobs to eternal oblivion
+          |- *stopgrade* ends grading process (clears internal resources)
+          |After answer You will get next image. Good luck, boobs lover!
+        """.stripMargin, parse_mode = Some("Markdown"))
       sendBoobsToGrade(ch)
 
-    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") && ch.isPrvChat && user.id == BOT_CREATOR =>
+    case NoArgCommand("grade", (ch, user, _)) =>
+      sender() ! ch.msg("Only in private chat.")
+
+    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") && ch.isPrvChat =>
       val arg = comm.split("_").toList.tail.head
       log.info(s"received grade $arg command")
       (questions.get(ch.chatId), arg) match {
         case (Some((fileId, telegram_f_id)), "YES") =>
-          val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
+          val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC, Some(user))
           doSthWithNewFile(ch, sender(), Boobs.create(telegram_f_id, Boobs.document, a.get.hash, ch.uber), publish = false)
           sendBoobsToGrade(ch)
         case (Some((fileId, telegram_f_id)), "PUBLISH") =>
-          val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC)
+          val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC, Some(user))
           doSthWithNewFile(ch, sender(), Boobs.create(telegram_f_id, Boobs.document, a.get.hash, ch.uber), publish = true)
           sendBoobsToGrade(ch)
         case (Some((fileId, telegram_f_id)), "NO") =>
-          WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED)
+          WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED, Some(user))
           sendBoobsToGrade(ch)
+        case (None, _) =>
+          sender() ! SendMessage(ch.chatId, s"Sorry, I've no info about Your grade, plase /grade if you want.")
         case (a, b) =>
           sender() ! SendMessage(ch.chatId, s"Sorry, I dont know $b with cache $a, but I have sth for You:")
           sender() ! sendBoobs(1, ch.chatId)
       }
       questions -= ch.chatId
 
-    case NoArgCommand("stopgrade", (ch, _, _)) if ch.isPrvChat && ch.chatId == BOT_CREATOR =>
+    case NoArgCommand("stopgrade", (ch, _, _)) if ch.isPrvChat =>
       questions -= ch.chatId
       sender() ! SendMessage(ch.chatId, "OK, end", reply_markup = ReplyKeyboardHide())
 
@@ -140,7 +145,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
           log.error(t, "parsing arguments")
       }
 
-    case NoArgCommand("start", (ch, _, _)) =>
+    case NoArgCommand("start" | "help", (ch, _, _)) =>
       sendHelp(ch.chatId)
 
     case NoArgCommand("subscribe", (ch, _, _)) =>
@@ -165,13 +170,6 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined =>
       val g = m.text.get
       g.stripPrefix("/") match {
-        //        case getImages if getImages.startsWith("get") =>
-        //          val numberStr = getImages.stripPrefix("get").dropWhile(_ == " ").takeWhile(_ != " ")
-        //          log.info(s"parsed number $numberStr")
-        //          val count = Math.min(Try(numberStr.trim.toInt).toOption.getOrElse(1), 5)
-        //          FilesDao.random(count).foreach(fId =>
-        //            sender() ! SendBoobsCorrectType(m.chatId, fId)
-        //          )
         case delete if delete.startsWith("delete") =>
           if (m.reply_to_message.isDefined) {
             if (m.reply_to_message.get.document.isDefined) {
@@ -189,13 +187,9 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
           } else {
             sender() ! SendMessage(m.chatId, "Sorry, this message isn't a comment of reply.")
           }
-        case help if help.startsWith("help") =>
-          sendHelp(m.chatId)
         case illegal if m.reply_to_message.isDefined =>
         // ignore, someone only commented Bot message
         case unknown =>
-        //          sender() ! SendMessage(m.chatId, s"Sorry, I dont know command $unknown, but I have sth for You:")
-        //          sender() ! sendBoobs(1, m.chatId)
       }
       sender() ! Handled(id)
 
@@ -252,7 +246,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
             case None =>
               hardSender ! SendMapped(GetFile(doc.file_id), {
                 case Response(_, Right(f@File(_, _, Some(fPath))), _) =>
-                  hardSender ! FetchFile(f, data => hardSelf ! FileFetchingResult(f, u.message.chat, Boobs.document, data))
+                  hardSender ! FetchFile(f, data => hardSelf.tell(FileFetchingResult(f, u.message.chat, Boobs.document, data), hardSender))
                   log.info(s"got file $fPath, downloading started")
                 case other =>
                   log.warning(s"got other response $other")
@@ -282,9 +276,12 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
   }
 
   def sendBoobsToGrade(ch: Chat, respondTo: Option[ActorRef] = None): Unit = {
-    val toMaybe = WaitingLinks.oneWaiting(questions.values.map(_._1).toSet)
+    val toSet = questions.values.map(_._1).toSet
+    log.info(s"used boobs $toSet")
+    val toMaybe = WaitingLinks.oneWaiting(toSet)
     log.info(s"next image will be $toMaybe")
     toMaybe.map { to =>
+      questions += ch.chatId ->(to._id.get, null)
       val req = respondTo.getOrElse(sender())
       log.info(s"using ${to.link}")
       FetchAndCalculateHash(to.link).map { case (hash, file) =>
@@ -302,13 +299,15 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
             case a =>
               req ! SendMessage(ch.chatId, s"unknown respond ${a.toString}")
           })
-          WaitingLinks.updateStatus(to._id.get, BoobsInMotionGIF.DUPLICATED)
+          WaitingLinks.updateStatus(to._id.get, BoobsInMotionGIF.DUPLICATED, None)
           file.delete()
+          questions -= ch.chatId
           sendBoobsToGrade(ch, Some(req))
         } else {
           req ! SendMapped(SendDocument(ch.chatId, Left(file)), {
             case Response(true, Left(id), _) =>
               log.info(s"received $id, I know what it is")
+              questions -= ch.chatId
               file.delete()
             case Response(true, Right(m: Message), _) if m.document.isDefined =>
               val telegram_file_id = m.document.get.file_id
@@ -323,7 +322,8 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
                       file.delete()
                     } else {
                       req ! SendMessage(ch.chatId, s"Suprisingly image is in DB already, looking for next")
-                      WaitingLinks.updateStatus(to._id.get, BoobsInMotionGIF.DUPLICATED)
+                      WaitingLinks.updateStatus(to._id.get, BoobsInMotionGIF.DUPLICATED, None)
+                      questions -= ch.chatId
                       sendBoobsToGrade(ch, Some(req))
                     }
                     if (h != to.hash) {
@@ -336,6 +336,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
               })
             case another =>
               log.warning(s"don't know what is this $another")
+              questions -= ch.chatId
               file.delete()
           })
         }
@@ -362,13 +363,14 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
         |/stats - prints some DB statistics
         |/subscribe - subscribes this chat to boobs news
         |/unsubscribe - unsubscribes
+        |/grade - start grading waiting images
+        |/waiting_stats - sends statistics about db of waiting images
         |/delete - as reply to image - deletes boobs from DB
         |/help - returns this help""".stripMargin + (
         if (chatId == BOT_CREATOR)
           """
-            |/grade - start grading waiting images
             |/all - sends all boobs
-            |/waiting_stats - sends statistics about waiting db""".stripMargin
+            | """.stripMargin
         else "")
     sender() ! SendMessage(chatId, text)
   }

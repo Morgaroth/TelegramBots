@@ -232,6 +232,8 @@ object ForceReply {
       last_name.map(x => s"$first_name $x").getOrElse(first_name)
     }
   }
+
+  def uber = UberUser(id, first_name, "user", last_name, username)
 }
 
 /**
