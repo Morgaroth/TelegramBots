@@ -15,6 +15,8 @@ package object models {
 
     def isGroupChat: Boolean = chat.isRight
 
+    def prv = chat.left.get
+
     def isPrvChat: Boolean = chat.isLeft
 
     def uber = chat.fold(u => UberUser(u.id, u.first_name, "user", u.last_name, u.username), g => UberUser(g.id, g.title, "group", None, None))

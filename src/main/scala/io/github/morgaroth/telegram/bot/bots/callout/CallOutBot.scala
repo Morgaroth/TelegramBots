@@ -122,6 +122,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
 
   def working: Receive = {
     case SingleArgCommand("_add_me", group, (chat, from, _)) if from.username.isDefined && chat.isGroupChat =>
+      println(s"group $group")
       addUserToGroup("all", chat, from.username.get)
       addUserToGroup(group, chat, from.username.get)
 
@@ -167,7 +168,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
       }
       sender() ! SendMessage(chat.chatId, msg)
 
-    case MultiArgCommand(groupName, _, (chat, from, _)) if chat.isGroupChat =>
+    case MultiArgCommand(groupName, _, (chat, from, _)) if chat.isGroupChat && !groupName.startsWith("_") =>
       dao.findGroup(groupName, chat)
         .map(x => x.members -- from.username.toSet)
         .filter(_.nonEmpty)
@@ -180,6 +181,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
       sender() ! SendMessage(ch.chatId, "Hello, this bot is under implementation")
 
     case NewUpdate(_, _, u: Update) if u.message.from.username.isDefined && u.message.chat.isGroupChat =>
+      println(s"msg from ${u.message.from}")
       addUserToGroup("all", u.message.chat, u.message.from.username.get)
   }
 

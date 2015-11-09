@@ -46,7 +46,8 @@ case class BoobsInMotionGIF(
                              accepted: String,
                              createdAt: DateTime,
                              grader: Option[User],
-                             gradedAt: Option[DateTime]
+                             gradedAt: Option[DateTime],
+                             skippedBy: Set[Int] = Set.empty
                            )
 
 trait BoobsInMotionGIFDao {
@@ -81,9 +82,10 @@ trait BoobsInMotionGIFDao {
       .map(_.postTime)
       .getOrElse(DateTime.now.withMillis(0))
 
-  def oneWaiting(butNo: Set[ObjectId]) = dao.findOne(MongoDBObject(
+  def oneWaiting(butNo: Set[ObjectId], forr: User) = dao.findOne(MongoDBObject(
     "accepted" -> BoobsInMotionGIF.WAITING,
-    "_id" -> MongoDBObject("$not" -> MongoDBObject("$in" -> butNo))
+    "_id" -> MongoDBObject("$not" -> MongoDBObject("$in" -> butNo)),
+    "skippedBy" -> MongoDBObject("$not" -> MongoDBObject("$in" -> List(forr.id)))
   ))
 
   def nWaiting(n: Int) = dao.find(MongoDBObject("accepted" -> BoobsInMotionGIF.WAITING)).limit(n).toList
@@ -98,6 +100,13 @@ trait BoobsInMotionGIFDao {
       ))
     )
     dao.findOneById(id)
+  }
+
+  def skip(id: ObjectId, by: User) = {
+    dao.update(
+      MongoDBObject("_id" -> id),
+      MongoDBObject("$addToSet" -> MongoDBObject("skippedBy" -> by.id))
+    )
   }
 
   def updateStatus(id: String, status: String, by: Option[User]): Option[BoobsInMotionGIF] = updateStatus(new ObjectId(id), status, by)

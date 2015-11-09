@@ -95,6 +95,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
           |- *grade_YES* marks boobs as good enough and saves in db
           |- *grade_PUBLISH* as *grade_YES* and sends boobs to subscribents
           |- *grade_NO* condemns those boobs to eternal oblivion
+          |- *grade_SKIP* skips image
           |- *stopgrade* ends grading process (clears internal resources)
           |After answer You will get next image. Good luck, boobs lover!
         """.stripMargin, parse_mode = Some("Markdown"))
@@ -117,6 +118,10 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
           sendBoobsToGrade(ch)
         case (Some((fileId, telegram_f_id)), "NO") =>
           WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED, Some(user))
+          sendBoobsToGrade(ch)
+        case (Some((fileId, telegram_f_id)), "SKIP") =>
+          WaitingLinks.skip(fileId, user)
+          questions -= ch.chatId
           sendBoobsToGrade(ch)
         case (None, _) =>
           sender() ! SendMessage(ch.chatId, s"Sorry, I've no info about Your grade, plase /grade if you want.")
@@ -176,7 +181,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     case NewUpdate(id, _, u@Update(_, m)) if m.text.isDefined =>
       val g = m.text.get
       g.stripPrefix("/") match {
-        case delete if delete.startsWith("delete") && BOOBS_SECRETS.contains(m.chatId) =>
+        case delete if delete.startsWith("delete") && BOOBS_SECRETS.contains(m.from.id) =>
           if (m.reply_to_message.isDefined) {
             if (m.reply_to_message.get.document.isDefined) {
               val toRemove = m.reply_to_message.get.document.get.file_id
@@ -284,7 +289,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
   def sendBoobsToGrade(ch: Chat, respondTo: Option[ActorRef] = None): Unit = {
     val toSet = questions.values.map(_._1).toSet
     log.info(s"used boobs $toSet")
-    val toMaybe = WaitingLinks.oneWaiting(toSet)
+    val toMaybe = WaitingLinks.oneWaiting(toSet,ch.prv)
     log.info(s"next image will be $toMaybe")
     toMaybe.map { to =>
       questions += ch.chatId ->(to._id.get, null)
@@ -324,7 +329,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
                     val h = calculateMD5(data.get)
                     if (BoobsDB.byHash(h).isEmpty) {
                       questions += ch.chatId ->(to._id.get, telegram_file_id)
-                      req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n/stopgrade if end.", reply_to_message_id = Some(m.message_id))
+                      req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n\n/stopgrade /grade_SKIP\nif end.", reply_to_message_id = Some(m.message_id))
                       file.delete()
                     } else {
                       req ! SendMessage(ch.chatId, s"Suprisingly image is in DB already, looking for next")
