@@ -122,7 +122,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
 
   def working: Receive = {
     case NoArgCommand("help", (chat, _, _)) =>
-      sender() ! chat.msg(help)
+      sender() ! chat.msg(help, parse_mode = Some("Markdown"))
 
     case SingleArgCommand("_add_me", group, (chat, from, _)) if from.username.isDefined && chat.isGroupChat =>
       addUserToGroup("all", chat, from.username.get)
