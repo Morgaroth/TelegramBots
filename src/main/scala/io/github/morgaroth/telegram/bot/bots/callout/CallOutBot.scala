@@ -2,6 +2,7 @@ package io.github.morgaroth.telegram.bot.bots.callout
 
 import akka.actor.{Actor, ActorLogging, Props, Stash}
 import akka.event.LoggingAdapter
+import com.mongodb.casbah.Imports
 import com.mongodb.casbah.commons.MongoDBObject
 import com.novus.salat.global.ctx
 import com.typesafe.config.Config
@@ -63,16 +64,15 @@ trait CallOutGroupDao {
     )
   }
 
-  def addUserToGroup(group: String, chat: Chat, user: String)(implicit log: LoggingAdapter): Unit = {
+  def addUserToGroup(group: String, chat: Chat, users: Seq[String])(implicit log: LoggingAdapter): Unit = {
     findGroup(group, chat).map { ex =>
-      if (!ex.members.contains(user)) {
-        val r = dao.update(MongoDBObject("_id" -> ex._id.get), MongoDBObject("$addToSet" -> MongoDBObject("members" -> s"$user")))
-        log.info(s"user $user added to group $group in chat $chat")
-        r
-      }
+      val r: Imports.WriteResult = dao.update(MongoDBObject("_id" -> ex._id.get), MongoDBObject("$addToSet" -> MongoDBObject("members" -> users)))
+      if (r.getN > 0)
+        log.info(s"user $users (${r.getN} of them)added to group $group in chat $chat")
+      r
     } getOrElse {
-      dao.save(CallOutGroup(chat.uber, group, Set(user), None))
-      log.info(s"user $user added to new group $group in chat $chat")
+      dao.save(CallOutGroup(chat.uber, group, users.toSet, None))
+      log.info(s"users $users added to new group $group in chat $chat")
     }
   }
 
@@ -121,14 +121,18 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
   }
 
   def working: Receive = {
+    case NoArgCommand("help", (chat, _, _)) =>
+      sender() ! chat.msg(help)
+
     case SingleArgCommand("_add_me", group, (chat, from, _)) if from.username.isDefined && chat.isGroupChat =>
-      println(s"group $group")
       addUserToGroup("all", chat, from.username.get)
       addUserToGroup(group, chat, from.username.get)
 
-    case MultiArgCommand("_add", (user :: group :: Nil), (chat, from, _)) if chat.isGroupChat =>
-      (user.stripPrefix("@") :: from.username.toList).foreach(u => addUserToGroup("all", chat, u))
-      addUserToGroup(group, chat, user.stripPrefix("@"))
+    case MultiArgCommand("_add", data, (chat, from, _)) if chat.isGroupChat =>
+      val users = data.init.map(_.stripPrefix("@"))
+      val group = data.last
+      addUserToGroup("all", chat, users ::: from.username.toList)
+      addUserToGroup(group, chat, users)
 
     case SingleArgCommand("_remove_me", group, (chat, from, _)) if from.username.isDefined && group != "all" && chat.isGroupChat =>
       addUserToGroup("all", chat, from.username.get)
@@ -185,14 +189,49 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
       addUserToGroup("all", u.message.chat, u.message.from.username.get)
   }
 
-  def addUserToGroup(group: String, chat: Chat, user: String): Unit = {
-    if (user != myUserName) {
+  def addUserToGroup(group: String, chat: Chat, user: String): Unit = addUserToGroup(group, chat, Seq(user))
+
+  def addUserToGroup(group: String, chat: Chat, users: Seq[String]): Unit = {
+    val toSave = users.filterNot(_ == myUserName)
+    if (toSave.nonEmpty) {
       val valid = """[^a-zA-Z0-9]""".r.findFirstMatchIn(group)
       if (valid.nonEmpty) {
         sender() ! SendMessage(chat.chatId, s"Illegal character at position ${valid.head.start} (${valid.head.group(0)}), only alphanumeric allowed.")
       } else {
-        dao.addUserToGroup(group, chat, user)
+        dao.addUserToGroup(group, chat, toSave)
       }
     }
   }
+
+
+  val help =
+    """
+      |CallOutBot
+      |
+      |Bot for aliasing group of people in Telegram chat, allows to call them out
+      |using group name/alias.
+      |
+      |Groups are created dynamically, by first person, who sign in.
+      |Members can
+      | - sign in to group by self (_add_me *group*)
+      | - also they can be signed in by others (/_add *members...* *group*)
+      |Everyone can signout from group by command /_remove_me *group*
+      |
+      |There is one special group: *all* from this one you cannot sign out.
+      |
+      |Since bots haven't access to chat participants list,
+      |chat members have to sign in to groups, even *all* group,
+      |but there is internal mechanism gro *all*: by send any message to bot,
+      |user will be signed in to *all*.
+      |
+      |You can check list of groups in channel by /_list_groups
+      |You can check members of group by /_members *group name*
+      |
+      |Using groups:
+      |simply start you message to group by /groupname and follow your message
+      |example:
+      |/all can anybody help me?
+      |
+      |Enjoy!
+    """.stripMargin
 }
