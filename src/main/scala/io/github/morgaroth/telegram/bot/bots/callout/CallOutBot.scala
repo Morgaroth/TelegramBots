@@ -14,6 +14,7 @@ import org.bson.types.ObjectId
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.reflectiveCalls
+import scala.util.Try
 
 /**
   * Created by mateusz on 22.10.15.
@@ -66,10 +67,10 @@ trait CallOutGroupDao {
 
   def addUserToGroup(group: String, chat: Chat, users: Seq[String])(implicit log: LoggingAdapter): Unit = {
     findGroup(group, chat).map { ex =>
-      val r: Imports.WriteResult = dao.update(MongoDBObject("_id" -> ex._id.get), MongoDBObject("$addToSet" -> MongoDBObject("members" -> users)))
-      if (r.getN > 0)
+      users.map(u => Try {
+        val r = dao.update(MongoDBObject("_id" -> ex._id.get), MongoDBObject("$addToSet" -> MongoDBObject("members" -> u)))
         log.info(s"user $users (${r.getN} of them)added to group $group in chat $chat")
-      r
+      })
     } getOrElse {
       dao.save(CallOutGroup(chat.uber, group, users.toSet, None))
       log.info(s"users $users added to new group $group in chat $chat")
