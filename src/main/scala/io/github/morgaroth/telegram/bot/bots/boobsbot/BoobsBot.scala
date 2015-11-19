@@ -169,7 +169,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
       }.get
       sender() ! SendMessage(ch.chatId, response)
 
-    case NoArgCommand("boobs" | "make_me_happy" | "give_me_boobs", (ch, _, _)) =>
+    case NoArgCommand("boobs" | "make_me_happy" | "give_me_boobs" | "im_not_happy_yet", (ch, _, _)) =>
       sendBoobs(1, ch.chatId)
 
     case NoArgCommand("unsubscribe", (ch, _, _)) =>
