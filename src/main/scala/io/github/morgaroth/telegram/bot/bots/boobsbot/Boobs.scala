@@ -1,5 +1,6 @@
 package io.github.morgaroth.telegram.bot.bots.boobsbot
 
+import com.mongodb.casbah.BaseImports
 import com.mongodb.casbah.commons.MongoDBObject
 import com.novus.salat.annotations._
 import com.novus.salat.global.ctx
@@ -13,20 +14,21 @@ import scala.util.Random
 case class Boobs(
                   @Key("_id") fileId: String,
                   typ: String,
-                  hash: String,
+                  hashes: List[String],
                   creator: Option[UberUser],
                   random: Double,
                   lastSeen: DateTime,
-                  created: DateTime
+                  created: DateTime,
+                  additional: Map[String, String] = Map.empty
                 )
 
 object Boobs {
   val document = "document"
   val photo = "photo"
 
-  def create(fileId: String, typ: String, hash: String, creator: UberUser = null) = {
+  def create(fileId: String, typ: String, hashes: List[String], creator: UberUser = null, additional: Map[String, String] = Map.empty) = {
     val now = DateTime.now()
-    apply(fileId, typ, hash, Option(creator), Random.nextDouble(), now, now)
+    apply(fileId, typ, hashes, Option(creator), Random.nextDouble(), now, now, additional)
   }
 
 }
@@ -38,7 +40,7 @@ trait BoobsDao {
 
   lazy val dao = {
     val d = new MongoDAOJodaSupport[Boobs](config, collection.getOrElse("Boobs")) {}
-    d.collection.ensureIndex(MongoDBObject("hash" -> 1), "hash_idx", unique = true)
+    d.collection.ensureIndex(MongoDBObject("hashes" -> 1), "hash_idx", unique = true)
     d.collection.ensureIndex(MongoDBObject("lastSeen" -> 1), "last_seen_idx")
     d
   }
@@ -71,9 +73,13 @@ trait BoobsDao {
     }
   }
 
-  def byHash(hash: String): Option[Boobs] = dao.findOne(MongoDBObject("hash" -> hash))
+  def byHash(hash: String): Option[Boobs] = dao.findOne(MongoDBObject("hashes" -> hash))
 
   def byId(id: String): Option[Boobs] = dao.findOneById(id)
 
-  def contains(hash: String) = dao.findOne(MongoDBObject("hash" -> hash)).nonEmpty
+  def contains(hash: String) = dao.findOne(MongoDBObject("hashes" -> hash)).nonEmpty
+
+  def appendHashById(id: String, hash: String) = dao.update(MongoDBObject("_id" -> id), MongoDBObject("$addToSet" -> MongoDBObject("hashes" -> hash)))
+
+  def appendHashByHash(hash: String, nextHash: String) = dao.update(MongoDBObject("hashes" -> hash), MongoDBObject("$addToSet" -> MongoDBObject("hashes" -> nextHash)))
 }

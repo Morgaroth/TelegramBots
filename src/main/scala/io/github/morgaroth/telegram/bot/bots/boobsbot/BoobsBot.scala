@@ -57,7 +57,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     36792931 // ma
   )
 
-  val questions = scala.collection.mutable.Map.empty[Int, (ObjectId, String)]
+  val questions = scala.collection.mutable.Map.empty[Int, (ObjectId, String, Option[String => Unit])]
 
   override def receive: Receive = {
     case SingleArgCommand("resolve", arg, (chat, _, _)) =>
@@ -108,18 +108,21 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
       val arg = comm.split("_").toList.tail.head
       log.info(s"received grade $arg command")
       (questions.get(ch.chatId), arg) match {
-        case (Some((fileId, telegram_f_id)), "YES") =>
+        case (Some((fileId, telegram_f_id, fn)), "YES") =>
           val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC, Some(user))
-          doSthWithNewFile(ch, sender(), Boobs.create(telegram_f_id, Boobs.document, a.get.hash, ch.uber), publish = false)
+          doSthWithNewFile(ch, sender(), Boobs.create(telegram_f_id, Boobs.document, List(a.get.hash), ch.uber), publish = false).map { newId =>
+            fn.map(_ (newId))
+          }
+
           sendBoobsToGrade(ch)
-        case (Some((fileId, telegram_f_id)), "PUBLISH") =>
+        case (Some((fileId, telegram_f_id, fn)), "PUBLISH") =>
           val a = WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.ACC, Some(user))
-          doSthWithNewFile(ch, sender(), Boobs.create(telegram_f_id, Boobs.document, a.get.hash, ch.uber), publish = true)
+          doSthWithNewFile(ch, sender(), Boobs.create(telegram_f_id, Boobs.document, List(a.get.hash), ch.uber), publish = true)
           sendBoobsToGrade(ch)
-        case (Some((fileId, telegram_f_id)), "NO") =>
+        case (Some((fileId, telegram_f_id, fn)), "NO") =>
           WaitingLinks.updateStatus(fileId, BoobsInMotionGIF.REJECTED, Some(user))
           sendBoobsToGrade(ch)
-        case (Some((fileId, telegram_f_id)), "SKIP") =>
+        case (Some((fileId, telegram_f_id, fn)), "SKIP") =>
           WaitingLinks.skip(fileId, user)
           questions -= ch.chatId
           sendBoobsToGrade(ch)
@@ -230,7 +233,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
         case Some(prev) => "This image is already in DataBase"
         case None =>
           Try {
-            val files = Boobs.create(fId, t, hash, author.uber)
+            val files = Boobs.create(fId, t, List(hash), author.uber)
             BoobsDB.dao.insert(files)
             self.forward(PublishBoobs(files, author))
             "Thx!"
@@ -249,7 +252,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
       val doc = m.document.get
       if (doc.mime_type.isDefined) {
         val mime = doc.mime_type.get
-        if (Set("image/jpeg", "image/png", "image/gif") contains mime) {
+        if (Set("image/jpeg", "image/png", "image/gif", "video/mp4") contains mime) {
           val hardSender = sender()
           BoobsDB.byId(doc.file_id) match {
             case Some(prev) =>
@@ -289,13 +292,13 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
   def sendBoobsToGrade(ch: Chat, respondTo: Option[ActorRef] = None): Unit = {
     val toSet = questions.values.map(_._1).toSet
     log.info(s"used boobs $toSet")
-    val toMaybe = WaitingLinks.oneWaiting(toSet,ch.prv)
+    val toMaybe = WaitingLinks.oneWaiting(toSet, ch.prv)
     log.info(s"next image will be $toMaybe")
     toMaybe.map { to =>
-      questions += ch.chatId ->(to._id.get, null)
+      questions += ch.chatId ->(to._id.get, null, None)
       val req = respondTo.getOrElse(sender())
       log.info(s"using ${to.link}")
-      FetchAndCalculateHash(to.link).map { case (hash, file) =>
+      FetchAndCalculateHash(to.link).map { case (hash, file, contentType) =>
         val hash1 = BoobsDB.byHash(hash)
         if (hash1.nonEmpty) {
           req ! SendMapped(SendMessage(ch.chatId,
@@ -328,7 +331,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
                   req ! FetchFile(f, data => {
                     val h = calculateMD5(data.get)
                     if (BoobsDB.byHash(h).isEmpty) {
-                      questions += ch.chatId ->(to._id.get, telegram_file_id)
+                      questions += ch.chatId ->(to._id.get, telegram_file_id, None)
                       req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n\n/stopgrade /grade_SKIP\nif end.", reply_to_message_id = Some(m.message_id))
                       file.delete()
                     } else {
@@ -338,6 +341,10 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
                       sendBoobsToGrade(ch, Some(req))
                     }
                     if (h != to.hash) {
+                      def fn(dbId: String): Unit = {
+                        BoobsDB.appendHashById(dbId, h)
+                      }
+                      questions += ch.chatId ->(to._id.get, telegram_file_id, Some(fn _))
                       req ! SendMessage(ch.chatId, s"hashes aren't the same = $h ${to.hash}", reply_to_message_id = Some(m.message_id))
                     }
                   })
@@ -390,17 +397,19 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     if (fId.typ == Boobs.document) SendDocument(to, Right(fId.fileId)) else SendPhoto(to, Right(fId.fileId))
   }
 
-  def doSthWithNewFile(chatId: Chat, worker: ActorRef, files: Boobs, publish: Boolean = true) = {
-    Try(BoobsDB.dao.insert(files)).map(x => log.info(s"saved to db $files")).getOrElse {
+  def doSthWithNewFile(chatId: Chat, worker: ActorRef, files: Boobs, publish: Boolean = true): Option[String] = {
+    val result = Try(BoobsDB.dao.insert(files))
+    result.map(x => log.info(s"saved to db $files")).getOrElse {
       log.warning(s"not saved $files")
     }
     if (publish) {
       hardSelf ! PublishBoobs(files, chatId, Some(worker))
     }
+    result.toOption.flatten
   }
 
   def resolveLink(link: String, user: Chat, bot: ActorRef, publish: Boolean = true): Unit = {
-    FetchAndCalculateHash(link).map { case (hash, tmpFile) =>
+    FetchAndCalculateHash(link).map { case (hash, tmpFile, contentType) =>
       BoobsDB.byHash(hash) match {
         case Some(previous) =>
           bot ! SendMessage(user.chatId, "This image is already in DataBase")
@@ -412,7 +421,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
               tmpFile.delete()
             case Response(true, Right(m: Message), _) if m.document.isDefined =>
               log.info(s"catched new boobs file ${m.document.get.file_id}")
-              doSthWithNewFile(user, bot, Boobs.create(m.document.get.file_id, Boobs.document, hash, user.uber), publish)
+              doSthWithNewFile(user, bot, Boobs.create(m.document.get.file_id, Boobs.document, List(hash), user.uber, Map("telegram_conent_type" -> contentType)), publish)
               tmpFile.delete()
             case another =>
               log.warning(s"don't know what is this $another")
@@ -422,7 +431,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     }
   }.recover {
     case UnsupportedBoobsContent(other) =>
-      bot ! SendMessage(user.chatId, s"Can't recognize file, only accept image/gif, current is ${other.value}")
+      bot ! SendMessage(user.chatId, s"Can't recognize file, current is ${other.value}")
     case NoContentInformation =>
       bot ! SendMessage(user.chatId, s"Can't recognize file, service doesn't provide content type... WTF!?")
     case t =>

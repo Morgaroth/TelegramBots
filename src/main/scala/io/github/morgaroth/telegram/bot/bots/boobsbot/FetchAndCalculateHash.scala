@@ -26,7 +26,7 @@ object FetchAndCalculateHash {
 
   case object NoContentInformation extends IllegalArgumentException
 
-  def apply(link: String)(implicit as: ActorSystem, log: LoggingAdapter): Future[(String, JFile)] = {
+  def apply(link: String)(implicit as: ActorSystem, log: LoggingAdapter): Future[(String, JFile, String)] = {
     //    println(s"hashing file from $link")
     import as.dispatcher
     implicit val tm: Timeout = 2.minutes
@@ -35,6 +35,7 @@ object FetchAndCalculateHash {
       val contentType = res.headers.find(_.name == `Content-Type`.name) match {
         case Some(`Content-Type`(ContentType(`image/gif`, _))) => Future.successful("gif")
         case Some(`Content-Type`(ContentType(`image/jpeg`, _))) => Future.successful("jpeg")
+        case Some(`Content-Type`(ContentType(`video/mp4`, _))) => Future.successful("mp4")
         case Some(`Content-Type`(ContentType(`image/png`, _))) => Future.successful("png")
         case Some(`Content-Type`(ContentType(`image/x-ms-bmp`, _))) => Future.successful("bmp")
         case Some(`Content-Type`(other)) => Future.failed(UnsupportedBoobsContent(other))
@@ -52,7 +53,7 @@ object FetchAndCalculateHash {
         stream.flush()
         stream.close()
         val hash = calculateMD5(tmpFile)
-        (hash, tmpFile)
+        (hash, tmpFile, ct)
       }
     }
   }
