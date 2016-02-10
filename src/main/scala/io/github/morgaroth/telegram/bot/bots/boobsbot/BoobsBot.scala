@@ -345,7 +345,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
                         BoobsDB.appendHashById(dbId, h)
                       }
                       questions += ch.chatId ->(to._id.get, telegram_file_id, Some(fn _))
-                      req ! SendMessage(ch.chatId, s"hashes aren't the same = $h ${to.hash}", reply_to_message_id = Some(m.message_id))
+                      log.warning(s"hashes aren't the same = $h ${to.hash}")
                     }
                   })
                   log.info(s"got file $fPath, downloading started")
