@@ -120,7 +120,7 @@ object LinksFromTumblrFetch extends TumblrKeys {
 
   val tumblrClient = {
     val a = new JumblrClient(KEY, SECRET)
-    a.setToken(OAUTH_TOKEN, OAUTH_KEY)
+    a.setToken(OAUTH_TOKEN, OAUTH_SECRET)
     a
   }
 
