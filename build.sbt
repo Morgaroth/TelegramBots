@@ -1,13 +1,11 @@
+import com.typesafe.sbt.SbtProguard.ProguardKeys.{proguard, options => proguardOptions}
 import com.typesafe.sbt.SbtProguard.ProguardOptions.keepMain
 import com.typesafe.sbt.SbtProguard._
-import com.typesafe.sbt.SbtProguard.ProguardKeys.{options => proguardOptions, proguard}
-import com.typesafe.sbt.SbtProguard.ProguardSettings._
-import sbt.inc.Analysis
 import sbtassembly.AssemblyPlugin.autoImport._
 
 name := "TelegramBots"
 
-version := "2.23"
+version := "2.24"
 
 scalaVersion := "2.11.7"
 
