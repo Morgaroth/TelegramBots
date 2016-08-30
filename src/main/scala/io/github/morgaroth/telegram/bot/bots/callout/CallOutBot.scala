@@ -2,12 +2,11 @@ package io.github.morgaroth.telegram.bot.bots.callout
 
 import akka.actor.{Actor, ActorLogging, Props, Stash}
 import akka.event.LoggingAdapter
-import com.mongodb.casbah.Imports
 import com.mongodb.casbah.commons.MongoDBObject
 import com.novus.salat.global.ctx
 import com.typesafe.config.Config
-import io.github.morgaroth.telegram.bot.core.api.models.extractors._
 import io.github.morgaroth.telegram.bot.core.api.models._
+import io.github.morgaroth.telegram.bot.core.api.models.extractors._
 import io.github.morgaroth.telegram.bot.core.engine.NewUpdate
 import io.github.morgaroth.utils.mongodb.salat.MongoDAO
 import org.bson.types.ObjectId
@@ -125,15 +124,19 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
     case NoArgCommand("help", (chat, _, _)) =>
       sender() ! chat.msg(help, parse_mode = Some("Markdown"))
 
-    case SingleArgCommand("_add_me", group, (chat, from, _)) if from.username.isDefined && chat.isGroupChat =>
+    case SingleArgCommand("_add_me", group, (chat, from, _)) if from.username.isDefined && chat.isGroupChat && group.nonEmpty =>
       addUserToGroup("all", chat, from.username.get)
       addUserToGroup(group, chat, from.username.get)
 
-    case MultiArgCommand("_add", data, (chat, from, _)) if chat.isGroupChat =>
+    case MultiArgCommand("_add", data, (chat, from, _)) if chat.isGroupChat && data.length >= 2 =>
       val users = data.init.map(_.stripPrefix("@"))
       val group = data.last
       addUserToGroup("all", chat, users ::: from.username.toList)
       addUserToGroup(group, chat, users)
+
+    case MultiArgCommand("_add", data, (chat, from, _)) if chat.isGroupChat =>
+      addUserToGroup("all", chat, from.username.toList)
+      sender() ! chat.markupMsg("Use format: /_add *${non empty list of users}* *${group name}*")
 
     case SingleArgCommand("_remove_me", group, (chat, from, _)) if from.username.isDefined && group != "all" && chat.isGroupChat =>
       addUserToGroup("all", chat, from.username.get)
@@ -152,7 +155,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
 
     case SingleArgCommand("_members", group, (chat, from, _)) if chat.isGroupChat =>
       val msg = dao.findGroup(group, chat).map(_.members.mkString(s"*$group*: ", ", ", "")).getOrElse(s"Group *$group* doesn't exist.")
-      sender() ! chat.msg(msg, parse_mode = Some("Markdown"))
+      sender() ! chat.markupMsg(msg)
 
     case NoArgCommand("_my_groups", (chat, from, _)) if chat.isPrvChat && from.username.isDefined =>
       val userGroups = dao.findUserGroups(from.username.get)
@@ -162,7 +165,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
           case (ch, grps) => s"*${ch.firstName}*: ${grps.mkString(", ")}"
         }.mkString("- ", "\n- ", "")
       }
-      sender() ! chat.msg(msg, parse_mode = Some("Markdown"))
+      sender() ! chat.markupMsg(msg)
 
     case NoArgCommand("_list_groups", (chat, from, _)) if chat.isGroupChat =>
       val grps = dao.findGroups(chat).toList

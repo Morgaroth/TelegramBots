@@ -7,6 +7,8 @@ import spray.json.DefaultJsonProtocol._
 import us.bleibinha.spray.json.macros.jsonstrict
 import us.bleibinha.spray.json.macros.lazyy.json
 
+import scala.language.implicitConversions
+
 sealed trait Command
 
 
@@ -19,6 +21,8 @@ object formats {
   implicit def convertToKeyboard(rkm: ReplyKeyboardHide): Option[Keyboard] = Some(Left(Right(rkm)))
 
   implicit def convertToKeyboard(rkm: ForceReply): Option[Keyboard] = Some(Right(rkm))
+
+  val Markdown = Some("Markdown")
 
   type DI = DummyImplicit
 
@@ -37,6 +41,7 @@ object formats {
   def convFD(t: (String, Keyboard)) = t._1 -> t._2.toJson.compactPrint
 
 }
+
 
 /**
   * https://core.telegram.org/bots/api#audio
