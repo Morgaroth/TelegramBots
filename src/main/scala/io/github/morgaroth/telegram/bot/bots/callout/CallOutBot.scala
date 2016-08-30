@@ -136,7 +136,7 @@ class CallOutBot(cfg: Config) extends Actor with ActorLogging with Stash {
 
     case MultiArgCommand("_add", data, (chat, from, _)) if chat.isGroupChat =>
       addUserToGroup("all", chat, from.username.toList)
-      sender() ! chat.markupMsg("Use format: /_add *${non empty list of users}* *${group name}*")
+      sender() ! chat.markupMsg("Use format: / ̲add *${non empty list of users}* *${group name}*")
 
     case SingleArgCommand("_remove_me", group, (chat, from, _)) if from.username.isDefined && group != "all" && chat.isGroupChat =>
       addUserToGroup("all", chat, from.username.get)
