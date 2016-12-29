@@ -6,6 +6,7 @@ import javax.xml.bind.DatatypeConverter
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.event.LoggingAdapter
+import com.mongodb.DuplicateKeyException
 import com.mongodb.MongoException.DuplicateKey
 import com.mongodb.casbah.commons.MongoDBObject
 import com.typesafe.config.Config
@@ -45,6 +46,9 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
   val SubsDao = new BoobsListenerDao {
     override def config = cfg.getConfig("database")
   }
+  val UsersDao = new BoobsUserDao {
+    override def config = cfg.getConfig("database")
+  }
   val WaitingLinks = new BoobsInMotionGIFDao {
     override def dbConfig: Config = cfg.getConfig("database")
   }
@@ -57,9 +61,28 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     36792931 // ma
   )
 
+  var knownUsers = UsersDao.dao.find(MongoDBObject.empty).map(_.user.id).toSet
+
   val questions = scala.collection.mutable.Map.empty[Int, (ObjectId, String, Option[String => Unit])]
 
+  def updateUserDB(user: User) = {
+    val result = Try {
+      if (knownUsers.contains(user.id)) None else {
+        knownUsers += user.id
+        UsersDao.dao.insert(BoobsUser(user.id.toString, user))
+      }
+    }.recoverWith {
+      case e: DuplicateKey => Success(None)
+      case e: DuplicateKeyException => Success(None)
+    }
+    result.failed.map(x => log.error(x, s"error during saving user: ${x.getMessage}"))
+  }
+
   override def receive: Receive = {
+    case NewUpdate(_, _, update) if {
+      updateUserDB(update.message.from)
+      false
+    } => ???
     case SingleArgCommand("resolve", arg, (chat, _, _)) =>
       resolveLink(arg, chat, sender())
 
@@ -69,19 +92,19 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     case NoArgCommand("stats", (chat, _, _)) =>
       sender() ! SendMessage(chat.chatId,
         s"""Statistics are:
-            |* all boobs in database (/2)= ${BoobsDB.dao.count()}
-            |* all subscribers in database = ${SubsDao.dao.count()}
-            |
+           |* all boobs in database (/2)= ${BoobsDB.dao.count()}
+           |* all subscribers in database = ${SubsDao.dao.count()}
+           |
           |This is all for now.
       """.stripMargin)
 
     case NoArgCommand("waiting_stats", (chat, _, _)) =>
       sender() ! SendMessage(chat.chatId,
         s"""Statistics are:
-            |* waiting = ${WaitingLinks.countWaiting}
-            |* accepted = ${WaitingLinks.countAccepted}
-            |* rejected = ${WaitingLinks.countRejected}
-            |This is all for now.
+           |* waiting = ${WaitingLinks.countWaiting}
+           |* accepted = ${WaitingLinks.countAccepted}
+           |* rejected = ${WaitingLinks.countRejected}
+           |This is all for now.
       """.stripMargin)
 
     case NoArgCommand("all", (ch, user, _)) if ch.isPrvChat && user.id == BOT_CREATOR =>
@@ -89,7 +112,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
         sender() ! SendBoobsCorrectType(ch.chatId, f)
       )
 
-    case NoArgCommand("grade", (ch, user, _)) if ch.isPrvChat =>
+    case NoArgCommand("grade", (ch, user, _)) if ch.isPrvChat && BOOBS_SECRETS.contains(user.id) =>
       sender() ! ch.msg(
         """You are in grading process, in loop you receive image and list of possible answers:
           |- *grade_YES* marks boobs as good enough and saves in db
@@ -104,7 +127,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     case NoArgCommand("grade", (ch, user, _)) =>
       sender() ! ch.msg("Only in private chat.")
 
-    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") && ch.isPrvChat =>
+    case NoArgCommand(comm, (ch, user, _)) if comm.startsWith("grade_") && ch.isPrvChat && BOOBS_SECRETS.contains(user.id) =>
       val arg = comm.split("_").toList.tail.head
       log.info(s"received grade $arg command")
       (questions.get(ch.chatId), arg) match {
@@ -295,7 +318,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
     val toMaybe = WaitingLinks.oneWaiting(toSet, ch.prv)
     log.info(s"next image will be $toMaybe")
     toMaybe.map { to =>
-      questions += ch.chatId ->(to._id.get, null, None)
+      questions += ch.chatId -> (to._id.get, null, None)
       val req = respondTo.getOrElse(sender())
       log.info(s"using ${to.link}")
       FetchAndCalculateHash(to.link).map { case (hash, file, contentType) =>
@@ -303,11 +326,11 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
         if (hash1.nonEmpty) {
           req ! SendMapped(SendMessage(ch.chatId,
             s"""Suprisingly this image is in DB already, looking for next...
-                |inserted by ${hash1.get.creator.map(_.getAnyUserName).getOrElse("anonymous")} at ${hash1.get.created.withZone(DateTimeZone.forID("Poland")).toString}
-                |image link ${to.link}
-                |previously/already calculated hashes:
-                |${to.hash}
-                |$hash""".stripMargin), {
+               |inserted by ${hash1.get.creator.map(_.getAnyUserName).getOrElse("anonymous")} at ${hash1.get.created.withZone(DateTimeZone.forID("Poland")).toString}
+               |image link ${to.link}
+               |previously/already calculated hashes:
+               |${to.hash}
+               |$hash""".stripMargin), {
             case Response(true, Right(m: Message), _) =>
               req ! SendDocument(ch.chatId, Right(hash1.get.fileId), reply_to_message_id = Some(m.message_id))
             case a =>
@@ -331,7 +354,7 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
                   req ! FetchFile(f, data => {
                     val h = calculateMD5(data.get)
                     if (BoobsDB.byHash(h).isEmpty) {
-                      questions += ch.chatId ->(to._id.get, telegram_file_id, None)
+                      questions += ch.chatId -> (to._id.get, telegram_file_id, None)
                       req ! SendMessage(ch.chatId, s"Grade, /grade_YES /grade_PUBLISH /grade_NO\n\n/stopgrade /grade_SKIP\nif end.", reply_to_message_id = Some(m.message_id))
                       file.delete()
                     } else {
@@ -344,7 +367,8 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
                       def fn(dbId: String): Unit = {
                         BoobsDB.appendHashById(dbId, h)
                       }
-                      questions += ch.chatId ->(to._id.get, telegram_file_id, Some(fn _))
+
+                      questions += ch.chatId -> (to._id.get, telegram_file_id, Some(fn _))
                       log.warning(s"hashes aren't the same = $h ${to.hash}")
                     }
                   })
@@ -381,13 +405,17 @@ class BoobsBot(cfg: Config) extends Actor with ActorLogging {
         |/stats - prints some DB statistics
         |/subscribe - subscribes this chat to boobs news
         |/unsubscribe - unsubscribes
-        |/grade - start grading waiting images
         |/waiting_stats - sends statistics about db of waiting images
         |/delete - as reply to image - deletes boobs from DB
         |/help - returns this help""".stripMargin + (
         if (chatId == BOT_CREATOR)
           """
             |/all - sends all boobs
+            | """.stripMargin
+        else "") + (
+        if (BOOBS_SECRETS.contains(chatId))
+          """
+            |/grade - start grading waiting images
             | """.stripMargin
         else "")
     sender() ! SendMessage(chatId, text)
