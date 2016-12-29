@@ -5,9 +5,9 @@ import sbtassembly.AssemblyPlugin.autoImport._
 
 name := "TelegramBots"
 
-version := "2.25"
+version := "2.26"
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("releases"),
@@ -45,7 +45,7 @@ libraryDependencies ++= Seq(
   Tumblr.Jumblr.`0.0.11`
 )
 
-addCompilerPlugin(Paradise.`2.1.0-M5`)
+addCompilerPlugin(Paradise.ver("2.1.0"))
 
 seq(Revolver.settings: _*)
 

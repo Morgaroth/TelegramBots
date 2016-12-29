@@ -119,8 +119,8 @@ object LinksFromTumblrFetch extends TumblrKeys {
   val df = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss 'GMT'").withZone(DateTimeZone.forID("Etc/GMT"))
 
   val tumblrClient = {
-    val a = new JumblrClient(KEY, SECRET)
-    a.setToken(OAUTH_TOKEN, OAUTH_SECRET)
+    val a = new JumblrClient(OAUTH_TOKEN, OAUTH_TOKEN_SECRET)
+    a.setToken(CONSUMER_KEY, CONSUMER_SECRET)
     a
   }
 
