@@ -115,7 +115,7 @@ trait BoobsInMotionGIFDao {
 /**
   * Created by mateusz on 15.10.15.
   */
-object LinksFromTumblrFetch extends TumblrKeys {
+object LinksFromTumblrFetch extends TumblrKeysImpl {
   val df = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss 'GMT'").withZone(DateTimeZone.forID("Etc/GMT"))
 
   val tumblrClient = {

@@ -27,7 +27,7 @@ project/boot/
 # Sensitive or high-churn files:
 # .idea/dataSources.ids
 # .idea/dataSources.xml
-/src/main/scala/io/github/morgaroth/telegram/bot/bots/boobsbot/TumblrKeys.scala
+/src/main/scala/io/github/morgaroth/telegram/bot/bots/boobsbot/TumblrKeysImpl.scala
 # .idea/sqlDataSources.xml
 # .idea/dynamic.xml
 # .idea/uiDesigner.xml
